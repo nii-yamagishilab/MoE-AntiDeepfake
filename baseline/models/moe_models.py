@@ -1,0 +1,123 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class MOE_ICASSP(nn.Module):
+    def __init__(self, experts, freezing=False, return_weights=False):
+        super(MOE_ICASSP, self).__init__()
+
+        self.return_weights = return_weights
+        self.experts = nn.ModuleList(experts)
+        num_experts = len(experts)
+
+        self.proj_dim = 32
+        self.bn = nn.BatchNorm1d(self.proj_dim)
+
+        self.proj = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(expert.latent_dim, self.proj_dim),
+                self.bn,
+                nn.LeakyReLU()
+            )
+            for expert in experts
+        ])
+
+        self.pooling = nn.Parameter(torch.ones(self.proj_dim))
+
+        gating_input_dim = self.proj_dim * (num_experts + 1)
+        self.gating_network = nn.Sequential(
+            nn.Linear(gating_input_dim, 64),
+            nn.Dropout(0.2),
+            nn.BatchNorm1d(64),
+            nn.LeakyReLU(),
+            nn.Linear(64, num_experts),
+        )
+
+        if freezing:
+            for expert in self.experts:
+                for param in expert.parameters():
+                    param.requires_grad = False
+
+    def forward(self, x):
+        outputs = [expert(x)[0] for expert in self.experts]
+        embeddings = [expert(x)[1] for expert in self.experts]
+
+        projected_embs = [proj(emb) for proj, emb in zip(self.proj, embeddings)]
+
+        stacked = torch.stack(projected_embs, dim=0)
+        combined = torch.prod(stacked, dim=0)
+        weighted_combined = combined * self.pooling.unsqueeze(0)
+
+        concatenated_embeddings = torch.cat(projected_embs + [weighted_combined], dim=1)
+
+        gating_weights = self.gating_network(concatenated_embeddings)
+        gating_weights = F.softmax(gating_weights, dim=-1)
+
+        weighted_logits = torch.stack(outputs, dim=-1)
+        weighted_logits = torch.einsum(
+            'be,bce->bc', gating_weights, weighted_logits
+        )
+
+        if self.return_weights:
+            return weighted_logits, gating_weights
+        else:
+            return weighted_logits
+
+
+class MOE_WIFS(nn.Module):
+    def __init__(self, experts, freezing=False, return_weights=False):
+        super(MOE_WIFS, self).__init__()
+
+        self.return_weights = return_weights
+        self.temperature = 1.2
+        self.hidden_dim = 128
+        self.proj_dim = 32
+
+        self.experts = nn.ModuleList(experts)
+        self.num_experts = len(experts)
+
+        self.proc_emb = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(expert.latent_dim, self.hidden_dim),
+                nn.BatchNorm1d(self.hidden_dim),
+                nn.GLU(),
+                nn.Linear(self.hidden_dim // 2, self.proj_dim)
+            )
+            for expert in experts
+        ])
+
+        self.TransfEnc = nn.Sequential(
+            nn.TransformerEncoderLayer(d_model=32, nhead=4, dropout=0.1, dim_feedforward=512, batch_first=True, norm_first=True),
+            nn.TransformerEncoderLayer(d_model=32, nhead=4, dropout=0.1, dim_feedforward=512, batch_first=True, norm_first=True),
+        )
+        self.linear_out = nn.Linear(32, 1)
+
+        self.softmax = nn.Softmax(dim=1)
+
+        if freezing:
+            for expert in self.experts:
+                for param in expert.parameters():
+                    param.requires_grad = False
+
+    def forward(self, x):
+
+        results = [expert(x) for expert in self.experts]
+        outputs = [res[0] for res in results]
+        embeddings = [res[1] for res in results]
+
+        processed_embs = torch.stack([proc_emb(emb) for proc_emb, emb in zip(self.proc_emb, embeddings)], dim=1)
+
+        transf_out = self.TransfEnc(processed_embs)
+
+        gating_weights = self.linear_out(transf_out)
+        gating_weights = self.softmax(gating_weights / self.temperature)
+
+        expert_outputs = torch.stack(outputs, dim=1)
+
+        combined_output = torch.sum(gating_weights * expert_outputs, dim=1)
+
+        if self.return_weights:
+            return combined_output, gating_weights
+        else:
+            return combined_output
