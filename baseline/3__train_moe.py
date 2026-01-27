@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(1, os.getcwd())
+
 from torch.utils.data import DataLoader
 from utils.data_utils import *
 from utils.training_utils import train_epoch, valid_epoch
@@ -21,6 +25,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def main(config, freeze_experts=True):
+    config['save_model_folder'] = os.path.join(config['save_model_folder'], 'baseline')
     Path(config['save_model_folder']).mkdir(parents=True, exist_ok=True)
 
     # DEFINE MOE MODEL
@@ -92,8 +97,8 @@ def main(config, freeze_experts=True):
     del dev_set, label_dev
 
 
-    # TRAINING & VALIDATIONT_max
-    optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, moe_model.parameters()), lr=config['lr'], weight_decay=0.0001)
+    # TRAINING & VALIDATION
+    optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, moe_model.parameters()), lr=float(config['lr']), weight_decay=0.0001)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config['num_epochs'], eta_min=0.00001)
     criterion = nn.CrossEntropyLoss()
     criterion = criterion.to(device)
@@ -112,7 +117,7 @@ def main(config, freeze_experts=True):
             with torch.no_grad():
                 valid_loss, valid_accuracy = valid_epoch(dev_loader, moe_model, criterion, 'cuda')
 
-            scheduler.step(valid_loss)
+            scheduler.step()
             print(f'Epoch: {epoch} - Train Loss: {running_loss:.5f} - Val Loss: '
                   f'{valid_loss:.5f} - Train Acc: {train_accuracy:.2f} - Val Acc: {valid_accuracy:.2f}')
 

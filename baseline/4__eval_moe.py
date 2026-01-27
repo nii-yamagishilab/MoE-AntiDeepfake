@@ -26,7 +26,7 @@ for w in [FutureWarning, UserWarning]:
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def main(checkpoint_path, save_folder, config):
+def main(checkpoint_path, config):
     Path(config['save_results_folder']).mkdir(parents=True, exist_ok=True)
 
     # DEFINE MODEL
@@ -80,12 +80,12 @@ def main(checkpoint_path, save_folder, config):
     # EVALUATE MODEL
     for dataset, df_eval in zip(datasets, [df_asv19, df_itw]):
 
-        print(f"Processing: {dataset.upper()}")
+        save_dir = os.path.join(config['save_results_folder'], dataset)
+        os.makedirs(save_dir, exist_ok=True)
 
-        result_path = os.path.join(save_folder, dataset, os.path.basename(checkpoint_path).replace('.pth', '.txt'))
+        print(f"Processing: {dataset.upper()}\n")
 
-        if not os.path.exists(os.path.join(save_folder, dataset)):
-            os.makedirs(os.path.join(save_folder, dataset))
+        result_path = os.path.join(save_dir, os.path.basename(checkpoint_path).replace('.pth', '.txt'))
 
         if os.path.exists(result_path):
             print("Save path exists - Deleting file")
@@ -116,9 +116,9 @@ if __name__ == '__main__':
     config['moe_configuration'] = 'mile'
     config['eval_checkpoint'] = 'MILE_ORIGINAL.pth'
     checkpoint_path = os.path.join(rootpath, config['eval_checkpoint'])
-    save_path = os.path.join(config['save_results_folder'], os.path.splitext(config['eval_checkpoint'])[0])
+    config['save_results_folder'] = os.path.join(config['save_results_folder'], 'baseline')
 
-    main(checkpoint_path, save_path, config)
+    main(checkpoint_path, config)
 
 
 

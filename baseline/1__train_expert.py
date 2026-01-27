@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(1, os.getcwd())
+
 from torch.utils.data import DataLoader
 from pathlib import Path
 import pandas as pd
@@ -16,10 +20,11 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def main(config, training_gata):
+def main(config, training_data):
+    config['save_model_folder'] = os.path.join(config['save_model_folder'], 'baseline')
     Path(config['save_model_folder']).mkdir(parents=True, exist_ok=True)
 
-    # DEFINE MOE MODEL
+    # DEFINE MODEL
     if config['model'] == 'LCNN':
         model = LCNN(return_emb=False)
     elif config['model'] == 'RESNET_LOGSPEC':
@@ -44,7 +49,7 @@ def main(config, training_gata):
     # LOAD TRAINING DATA
     train_dfs = []
     dev_dfs = []
-    for dataset in training_gata:
+    for dataset in training_data:
         df_train, df_dev = load_training_data_holdout(dataset, config)
         train_dfs.append(df_train)
         dev_dfs.append(df_dev)
@@ -68,7 +73,7 @@ def main(config, training_gata):
 
 
     # TRAINING & VALIDATION
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'], weight_decay=0.0001)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=float(config['lr']), weight_decay=0.0001)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config['num_epochs'], eta_min=0.00001)
     criterion = nn.CrossEntropyLoss(label_smoothing=0.2)
     criterion = criterion.to(device)

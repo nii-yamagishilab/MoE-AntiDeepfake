@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(1, os.getcwd())
+
 from torch.utils.data import DataLoader
 from pathlib import Path
 from models.lcnn_model import LCNN
@@ -13,7 +17,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def main(checkpoint_paths, model_classes, save_folder):
+def main(checkpoint_paths, model_classes):
     Path(config['save_results_folder']).mkdir(parents=True, exist_ok=True)
 
     # DEFINE MODEL
@@ -38,12 +42,12 @@ def main(checkpoint_paths, model_classes, save_folder):
     for expert, model_path in zip(experts, checkpoint_paths):
         for dataset, df_eval in zip(datasets, [df_asv19, df_itw]):
 
+            save_dir = os.path.join(config['save_results_folder'], dataset)
+            os.makedirs(save_dir, exist_ok=True)
+
             print(f"Processing: {dataset.upper()}\n")
 
-            result_path = os.path.join(save_folder, dataset, os.path.basename(model_path).replace('.pth', '.txt'))
-
-            if not os.path.exists(os.path.join(save_folder, dataset)):
-                os.makedirs(os.path.join(save_folder, dataset))
+            result_path = os.path.join(save_dir, os.path.basename(model_path).replace('.pth', '.txt'))
 
             if os.path.exists(result_path):
                 print("Save path exists - Deleting file")
@@ -74,9 +78,10 @@ if __name__ == '__main__':
     ]
     model_classes = [LCNN]
 
+    config['save_results_folder'] = os.path.join(config['save_results_folder'], 'baseline')
     checkpoint_paths = [os.path.join(config['save_model_folder'], name) for name in model_names]
 
-    main(checkpoint_paths, model_classes, config['save_results_folder'])
+    main(checkpoint_paths, model_classes)
 
 
 

@@ -1,0 +1,19 @@
+---
+rootpath: '/home/smg/v-viola/moe_antideepfake'
+save_model_folder: '/home/smg/v-viola/moe_antideepfake/checkpoints'
+save_results_folder: '/home/smg/v-viola/moe_antideepfake/results'
+
+asvspoof_path: '/Database/ASVspoof2019/public_released_data'
+for_path: '/Database/Fake-or-Real-Dataset/for-original'
+add2022_path: '/Database/ADD2022'
+add2022_label_path: '/home/smg/v-viola/moe_antideepfake/baseline/config'
+InTheWild_path: '/Database/Fraunhofer_Deepfake_in_wild'
+InTheWild_wav_folder: 'wav16k'
+
+
+
+MLAAD_path: '/Database/MLAAD/v5/fake'
+timit_tts_path: '/Database/TIMIT-TTS'
+
+MAILABS_path: '...'  # not found
+vidtimit_path: '/Database/VidTIMIT'  # zip

@@ -68,7 +68,7 @@ class LCNN(nn.Module):
             torchaudio.transforms.MelSpectrogram(sample_rate=16000, n_fft=512, win_length=400, hop_length=160, \
                                                  f_min = 20, f_max = 7600, window_fn=torch.hamming_window, n_mels=80),
             )
-        self.softmax = nn.Softmax(dim=1)
+        # self.softmax = nn.Softmax(dim=1)
 
         # self.latent_dim = 64  # for MELE_ORIGINAL
         self.latent_dim = 128
@@ -93,11 +93,11 @@ class LCNN(nn.Module):
         return torch.cat((res1, res2), 1)
 
     def forward(self, x):
-        with torch.no_grad():
-            with torch.cuda.amp.autocast(enabled=False):
-                x = self.torchfbank(x)+1e-6
-                x = x.log()
-                x = x - torch.mean(x, dim=-1, keepdim=True)
+        # with torch.no_grad():
+        #     with torch.amp.autocast('cuda', enabled=False):
+        #         x = self.torchfbank(x)+1e-6
+        #         x = x.log()
+        #         x = x - torch.mean(x, dim=-1, keepdim=True)
 
         x = self.conv1(x.unsqueeze(1))
         x = self.mfm2(x)
@@ -134,10 +134,10 @@ class LCNN(nn.Module):
         emb2 = self.batchnorm31(x)
         logits = self.fc32(emb2)
 
-        output = self.softmax(logits)
+        # output = self.softmax(logits)
 
         if self.return_emb:
-            return output, emb1
+            return logits, emb1
         else:
-            return output
+            return logits
 

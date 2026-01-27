@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from tqdm import tqdm
+import numpy as np
 
 
 def train_epoch(train_loader, model, optim, criterion, device):
@@ -69,7 +70,7 @@ def eval_expert(model, data_loader, save_path, device):
 
         batch_out = model(batch_x)
         batch_out = nn.Softmax(dim=1)(batch_out)
-        batch_score = (batch_out[:, 0]).data.cpu().numpy().ravel()
+        batch_score = (batch_out[:, 1]).data.cpu().numpy().ravel()
 
         fname_list.extend(utt_id)
         pred_list.extend(batch_score.tolist())
@@ -89,32 +90,23 @@ def eval_moe(model, data_loader, save_path, device):
     batch_count = 0
 
     for batch_x, batch_y, utt_id in tqdm(data_loader, total=len(data_loader)):
-        fname_list = []
-        pred_list = []
-        label_list = []
-
         batch_x = batch_x.to(device)
 
         batch_out, gating_weights = model(batch_x)
         batch_out = nn.Softmax(dim=1)(batch_out)
-        batch_score = (batch_out[:, 0]).data.cpu().numpy().ravel()
+        batch_score = batch_out[:, 1].detach().cpu().numpy()
 
-        # if total_gating_weights is None:
-        #     total_gating_weights = np.sum(gating_weights.detach().cpu().numpy(), axis=0)
-        # else:
-        #     total_gating_weights += np.sum(gating_weights.detach().cpu().numpy(), axis=0)
-        #     batch_count += gating_weights.shape[0]
-        #
-        # averaged_gating_weights = total_gating_weights / batch_count  # shape: (num_experts)
-        # np.save(save_path.replace('.txt', '.npy'), averaged_gating_weights)
+        if total_gating_weights is None:
+            total_gating_weights = np.sum(gating_weights.detach().cpu().numpy(), axis=0)
+        else:
+            total_gating_weights += np.sum(gating_weights.detach().cpu().numpy(), axis=0)
+        batch_count += batch_x.size(0)
 
-        fname_list.extend(utt_id)
-        pred_list.extend(batch_score.tolist())
-        label_list.extend(batch_y.tolist())
+        averaged_gating_weights = total_gating_weights / batch_count  # shape: (num_experts)
+        np.save(save_path.replace('.txt', '.npy'), averaged_gating_weights)
 
-        with open(save_path, 'w') as fh:
-            for f, pred, lab in zip(fname_list, pred_list, label_list):
+        with open(save_path, 'a') as fh:
+            for f, pred, lab in zip(utt_id, batch_score.tolist(), batch_y.tolist()):
                 fh.write('{} {} {}\n'.format(f, pred, lab))
-        fh.close()
 
-    print('Scores saved to {}'.format(save_path))
+    print('Scores saved to {}\n'.format(save_path))

@@ -293,6 +293,28 @@ def load_evaluation_data(datasets, config):
 
     return data
 
+def load_asv5_bonafide(paths, base_path):
+    dfs = []
+
+    for p in paths:
+        filename = os.path.basename(p).lower()
+        if "train" in filename:
+            subdir = "flac_T"
+        elif "dev" in filename:
+            subdir = "flac_D"
+        else:
+            subdir = "flac_E_eval"
+
+        df = pd.read_csv(p, sep=' ', header=None)
+        df = (
+            df[df[8] == 'bonafide']
+            .assign(path=lambda df: df[1].apply(
+                lambda x: os.path.join(base_path, subdir, f"{x}.flac")
+            ))[['path']]
+        )
+        dfs.append(df)
+
+    return pd.concat(dfs, ignore_index=True)
 
 ############################## Feed Dataloader ##################################
 
@@ -401,3 +423,76 @@ class LoadEvalData(Dataset):
 
         y = self.labels[track]
         return x, y, track
+
+class LoadExperimentalData(Dataset):
+    def __init__(self, list_IDs, config, multi_band=False, is_eval=False):
+        self.list_IDs = list_IDs
+        self.win_len = config['win_len']
+        self.fs = config['fs']
+        self.win_len_samples = int(self.win_len * self.fs)
+        self.multi_band = multi_band
+        self.is_eval = is_eval
+
+        self.bands = config.get("bands", [(0, 1000), (1000, 3000), (3000, 6000), (6000, 8000)])
+        self.f_low, self.f_high = config.get("band", (0, 8000))
+
+        self.p_perturb = config.get("p_perturb", 0.5)
+        self.snr_db = config.get("snr_db", 60)
+        self.n_fft = config.get("n_fft", 512)
+        self.hop = config.get("hop", 256)
+
+    def __len__(self):
+        return len(self.list_IDs)
+
+    def add_band_limited_noise(self, mag, band):
+        f_low, f_high = band
+        freqs = torch.fft.rfftfreq(self.n_fft, d=1.0 / self.fs)
+        freq_idx = torch.where((freqs >= f_low) & (freqs <= f_high))[0]
+
+        noise = torch.randn_like(mag)
+        signal_power = torch.mean(mag[freq_idx, :] ** 2) + 1e-8
+        noise_power = torch.mean(noise[freq_idx, :] ** 2) + 1e-8
+        alpha = torch.sqrt(signal_power / (noise_power * 10 ** (self.snr_db / 10)))
+
+        band_mask = torch.zeros_like(mag)
+        band_mask[freq_idx, :] = 1.0
+
+        return mag + alpha * noise * band_mask
+
+    def __getitem__(self, idx):
+        path = self.list_IDs[idx]
+        x, _ = librosa.load(path, sr=self.fs)
+        x = torch.Tensor(x)
+        x = prepare_audio_window(x, self.win_len_samples, is_eval=False)
+
+        window = torch.hann_window(self.n_fft, device=x.device)
+        X = torch.stft(
+            x, n_fft=self.n_fft, hop_length=self.hop,
+            win_length=self.n_fft, window=window,
+            center=False, return_complex=True
+        )
+        mag = torch.abs(X)
+
+        label = 0
+        key = os.path.splitext(os.path.basename(path))[0]
+
+        if random.random() < self.p_perturb:
+            if self.multi_band:
+                band = random.choice(self.bands)
+                mag = self.add_band_limited_noise(mag, band)
+            else:
+                mag = self.add_band_limited_noise(mag, (self.f_low, self.f_high))
+
+            label = 1
+
+        mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
+
+        if not self.is_eval:
+            return mag, label
+        else:
+            return mag, label, key
+
+# import matplotlib.pyplot as plt
+# plt.figure(figsize=(5, 3))
+# plt.imshow(librosa.amplitude_to_db(mag_noisy.numpy(), ref=np.max), origin='lower', aspect='auto')
+# plt.show()
