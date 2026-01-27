@@ -437,7 +437,7 @@ class LoadExperimentalData(Dataset):
         self.f_low, self.f_high = config.get("band", (0, 8000))
 
         self.p_perturb = config.get("p_perturb", 0.5)
-        self.snr_db = config.get("snr_db", 60)
+        self.snr_db = config.get("snr_db", 30)
         self.n_fft = config.get("n_fft", 512)
         self.hop = config.get("hop", 256)
 
@@ -450,14 +450,21 @@ class LoadExperimentalData(Dataset):
         freq_idx = torch.where((freqs >= f_low) & (freqs <= f_high))[0]
 
         noise = torch.randn_like(mag)
-        signal_power = torch.mean(mag[freq_idx, :] ** 2) + 1e-8
+        # signal_power = torch.mean(mag[freq_idx, :] ** 2) + 1e-8
         noise_power = torch.mean(noise[freq_idx, :] ** 2) + 1e-8
-        alpha = torch.sqrt(signal_power / (noise_power * 10 ** (self.snr_db / 10)))
+        alpha = torch.sqrt(1.0 / (noise_power * 10 ** (self.snr_db / 10)))
 
         band_mask = torch.zeros_like(mag)
         band_mask[freq_idx, :] = 1.0
 
-        return mag + alpha * noise * band_mask
+        mag_noisy = mag + alpha * noise * band_mask
+        return mag_noisy
+
+# import matplotlib.pyplot as plt
+# import numpy as np
+# plt.figure(figsize=(5, 3))
+# plt.imshow(librosa.amplitude_to_db(mag_noisy.numpy(), ref=np.max), origin='lower', aspect='auto')
+# plt.show()
 
     def __getitem__(self, idx):
         path = self.list_IDs[idx]
@@ -491,8 +498,3 @@ class LoadExperimentalData(Dataset):
             return mag, label
         else:
             return mag, label, key
-
-# import matplotlib.pyplot as plt
-# plt.figure(figsize=(5, 3))
-# plt.imshow(librosa.amplitude_to_db(mag_noisy.numpy(), ref=np.max), origin='lower', aspect='auto')
-# plt.show()

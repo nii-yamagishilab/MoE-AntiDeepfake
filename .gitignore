@@ -10,7 +10,8 @@ baseline/csv_files/
 # Ignore specific files
 baseline/config/args_paths.yaml
 /*.txt
-
+/README.md
+/LICENSE
 
 ##############################################################
 

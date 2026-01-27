@@ -111,10 +111,10 @@ def train_moe(config):
     # DEFINE MOE MODEL
     experts = [LCNN(return_emb=True) for _ in range(4)]
     ckpts = [
-        f'{config['save_model_folder']}/POC_LCNN_0-2000.pth',
-        f'{config['save_model_folder']}/POC_LCNN_2000-4000.pth',
-        f'{config['save_model_folder']}/POC_LCNN_4000-6000.pth',
-        f'{config['save_model_folder']}/POC_LCNN_6000-8000.pth',
+        f'{config['save_model_folder']}/POC_LCNN_0-2000_v2.pth',
+        f'{config['save_model_folder']}/POC_LCNN_2000-4000_v2.pth',
+        f'{config['save_model_folder']}/POC_LCNN_4000-6000_v2.pth',
+        f'{config['save_model_folder']}/POC_LCNN_6000-8000_v2.pth',
     ]
     for expert, ckpt in zip(experts, ckpts):
         expert.load_state_dict(torch.load(ckpt, map_location=device))
@@ -266,7 +266,7 @@ if __name__ == '__main__':
     def setup_expert_model(model='LCNN', band=(0, 2000)):
         config['model'] = model
         config['band'] = list(band)
-        config['model_name'] = f"POC_{model}_{band[0]}-{band[1]}.pth"
+        config['model_name'] = f"POC_{model}_{band[0]}-{band[1]}_v2.pth"
 
         print(f"\nModel type: {model}")
         print(f"Model name: {config['model_name']}")
@@ -298,6 +298,6 @@ if __name__ == '__main__':
     # Uncomment one of the following lines:
 
     # setup_expert_model(model='LCNN', band=(6000, 8000))
-    # setup_moe_model(model_name='POC_MELE_TRANSF.pth', moe_configuration='mele', freeze_experts=False)
-    evaluate_moe_model(model_name='POC_MELE_CAT.pth')
+    setup_moe_model(model_name='POC_MELE_TRANSF_v2.pth', moe_configuration='mele', freeze_experts=False)
+    # evaluate_moe_model(model_name='POC_MELE_CAT.pth')
 
