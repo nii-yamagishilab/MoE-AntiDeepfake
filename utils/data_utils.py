@@ -480,9 +480,8 @@ class LoadExperimentalData(Dataset):
         )
         mag = torch.abs(X)
 
-        label = 0
         key = os.path.splitext(os.path.basename(path))[0]
-
+        label = 0
         if random.random() < self.p_perturb:
             if self.multi_band:
                 band = random.choice(self.bands)
@@ -498,3 +497,12 @@ class LoadExperimentalData(Dataset):
             return mag, label
         else:
             return mag, label, key
+
+
+# import opensmile
+# smile = opensmile.Smile(
+#     feature_set=opensmile.FeatureSet.eGeMAPSv02,
+#     feature_level=opensmile.FeatureLevel.Functionals,
+# )
+# y = smile.process_file(path)
+# features = list(y.columns)
