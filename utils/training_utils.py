@@ -84,6 +84,63 @@ def eval_expert(model, data_loader, save_path, device):
     print('Scores saved to {}\n'.format(save_path))
 
 
+def train_epoch_moe(train_loader, model, optim, criterion, device):
+    running_loss = 0
+    num_correct = 0.0
+    num_total = 0.0
+    model.train()
+
+    for batch_x, batch_y in tqdm(train_loader, total=len(train_loader)):
+
+        batch_size = batch_x.size(0)
+        num_total += batch_size
+
+        batch_x = batch_x.to(device)
+        batch_y = batch_y.view(-1).float().to(device)
+
+        batch_out = model(batch_x)
+        batch_out = batch_out[:, 1]
+
+        batch_loss = criterion(batch_out, batch_y)
+        batch_pred = (batch_out >= 0.5).long()
+        num_correct += (batch_pred == batch_y.long()).sum(dim=0).item()
+        running_loss += (batch_loss.item() * batch_size)
+
+        optim.zero_grad()
+        batch_loss.backward()
+        optim.step()
+
+    running_loss /= num_total
+    train_accuracy = (num_correct / num_total) * 100
+    return running_loss, train_accuracy
+
+
+def valid_epoch_moe(data_loader, model, criterion, device):
+    running_loss = 0
+    num_correct = 0.0
+    num_total = 0.0
+
+    model.eval()
+
+    for batch_x, batch_y in tqdm(data_loader, total=len(data_loader)):
+        batch_size = batch_x.size(0)
+        num_total += batch_size
+        batch_x = batch_x.to(device)
+        batch_y = batch_y.view(-1).float().to(device)
+
+        batch_out = model(batch_x)
+        batch_out = batch_out[:, 1]
+
+        batch_loss = criterion(batch_out, batch_y)
+        batch_pred = (batch_out >= 0.5).long()
+        num_correct += (batch_pred == batch_y.long()).sum(dim=0).item()
+        running_loss += (batch_loss.item() * batch_size)
+
+    valid_accuracy = (num_correct / num_total) * 100
+    running_loss /= num_total
+    return running_loss, valid_accuracy
+
+
 def eval_moe(model, data_loader, save_path, device):
     model.eval()
     total_gating_weights = None
@@ -93,7 +150,6 @@ def eval_moe(model, data_loader, save_path, device):
         batch_x = batch_x.to(device)
 
         batch_out, gating_weights = model(batch_x)
-        batch_out = nn.Softmax(dim=1)(batch_out)
         batch_score = batch_out[:, 1].detach().cpu().numpy()
 
         if total_gating_weights is None:

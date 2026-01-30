@@ -3,7 +3,7 @@
 pydevd-pycharm.egg
 
 # Ignore folders
-# checkpoints/
+checkpoints/
 results/
 baseline/csv_files/
 

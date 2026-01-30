@@ -100,7 +100,7 @@ def main(config, freeze_experts=True):
     # TRAINING & VALIDATION
     optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, moe_model.parameters()), lr=float(config['lr']), weight_decay=0.0001)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config['num_epochs'], eta_min=0.00001)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCELoss()
     criterion = criterion.to(device)
 
     best_acc = 0

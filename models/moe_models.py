@@ -52,17 +52,18 @@ class MOE_ICASSP(nn.Module):
         concatenated_embeddings = torch.cat(projected_embs + [weighted_combined], dim=1)
 
         gating_weights = self.gating_network(concatenated_embeddings)
-        gating_weights = F.softmax(gating_weights, dim=-1)
+        gating_weights = F.softmax(gating_weights, dim=-1).unsqueeze(dim=-1)
 
-        weighted_logits = torch.stack(outputs, dim=-1)
-        weighted_logits = torch.einsum(
-            'be,bce->bc', gating_weights, weighted_logits
-        )
+        stacked_logits = torch.stack(outputs, dim=1)
+        expert_probs = torch.softmax(stacked_logits, dim=-1)
+
+        combined_output = torch.sum(gating_weights * expert_probs, dim=1)
+        weights_x_probs = gating_weights * expert_probs
 
         if self.return_weights:
-            return weighted_logits, gating_weights
+            return combined_output, weights_x_probs
         else:
-            return weighted_logits
+            return combined_output
 
 
 class MOE_WIFS(nn.Module):
@@ -104,6 +105,7 @@ class MOE_WIFS(nn.Module):
 
         results = [expert(x) for expert in self.experts]
         outputs = [res[0] for res in results]
+
         embeddings = [res[1] for res in results]
 
         processed_embs = torch.stack([proc_emb(emb) for proc_emb, emb in zip(self.proc_emb, embeddings)], dim=1)
@@ -113,11 +115,13 @@ class MOE_WIFS(nn.Module):
         gating_weights = self.linear_out(transf_out)
         gating_weights = self.softmax(gating_weights / self.temperature)
 
-        expert_outputs = torch.stack(outputs, dim=1)
+        stacked_logits = torch.stack(outputs, dim=1)
+        expert_probs = torch.softmax(stacked_logits, dim=-1)
 
-        combined_output = torch.sum(gating_weights * expert_outputs, dim=1)
+        combined_output = torch.sum(gating_weights * expert_probs, dim=1)
+        weights_x_probs = gating_weights * expert_probs
 
         if self.return_weights:
-            return combined_output, gating_weights
+            return combined_output, weights_x_probs
         else:
             return combined_output

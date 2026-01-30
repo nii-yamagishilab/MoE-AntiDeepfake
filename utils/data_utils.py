@@ -491,18 +491,11 @@ class LoadExperimentalData(Dataset):
 
             label = 1
 
+        # mag = self.add_band_limited_noise(mag, (self.f_low, self.f_high))
+
         mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
 
         if not self.is_eval:
             return mag, label
         else:
             return mag, label, key
-
-
-# import opensmile
-# smile = opensmile.Smile(
-#     feature_set=opensmile.FeatureSet.eGeMAPSv02,
-#     feature_level=opensmile.FeatureLevel.Functionals,
-# )
-# y = smile.process_file(path)
-# features = list(y.columns)

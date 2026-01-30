@@ -8,7 +8,7 @@ from pathlib import Path
 from models.lcnn_model import LCNN
 from models.moe_models import MOE_ICASSP, MOE_WIFS
 from utils.data_utils import load_asv5_bonafide, LoadExperimentalData
-from utils.training_utils import train_epoch, valid_epoch, eval_moe
+from utils.training_utils import train_epoch, valid_epoch, train_epoch_moe, valid_epoch_moe, eval_moe
 from utils.utils import *
 from sklearn.model_selection import train_test_split
 
@@ -119,17 +119,13 @@ def train_moe(config):
     for expert, ckpt in zip(experts, ckpts):
         expert.load_state_dict(torch.load(ckpt, map_location=device))
 
-    # moe_model = MOE_ICASSP(experts=experts, freezing=config['freeze_experts'])
-    moe_model = MOE_WIFS(experts=experts, freezing=config['freeze_experts'])
+    moe_model = MOE_ICASSP(experts=experts, freezing=config['freeze_experts'])
+    # moe_model = MOE_WIFS(experts=experts, freezing=config['freeze_experts'])
 
     for expert in experts:
         expert.to(device)
 
     moe_model = (moe_model).to(device)
-
-    ckpt_path = os.path.join(config['save_model_folder'], 'POC_MELE_TRANSF.pth')
-    moe_model.load_state_dict(torch.load(ckpt_path, map_location=device))
-    print(f'Checkpoint loaded: {ckpt_path}')
 
     # LOAD TRAINING DATA
     df_asv5 = load_asv5_bonafide(
@@ -162,7 +158,7 @@ def train_moe(config):
     # TRAINING & VALIDATION
     optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, moe_model.parameters()), lr=float(config['lr']), weight_decay=0.0001)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config['num_epochs'], eta_min=0.00001)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCELoss()
     criterion = criterion.to(device)
 
     best_acc = 0
@@ -175,9 +171,9 @@ def train_moe(config):
             for param_group in optimizer.param_groups:
                 print(f"Learning Rate: {param_group['lr']}")
 
-            running_loss, train_accuracy = train_epoch(train_loader, moe_model, optimizer, criterion, device)
+            running_loss, train_accuracy = train_epoch_moe(train_loader, moe_model, optimizer, criterion, device)
             with torch.no_grad():
-                valid_loss, valid_accuracy = valid_epoch(dev_loader, moe_model, criterion, device)
+                valid_loss, valid_accuracy = valid_epoch_moe(dev_loader, moe_model, criterion, device)
 
             scheduler.step()
             print(f'Epoch: {epoch} - Train Loss: {running_loss:.5f} - Val Loss: '
@@ -221,7 +217,7 @@ def test_moe(checkpoint_path, save_folder, config):
         ['/Database/ASVspoof5/protocols/ASVspoof5.eval.track_1.tsv'],
         '/Database/ASVspoof5')
 
-    df_eval = df_eval.sample(n=10000, random_state=config['seed']).reset_index(drop=True)
+    df_eval = df_eval.sample(n=5000, random_state=config['seed']).reset_index(drop=True)
 
     print(f'Total no. of test samples: {len(df_eval)}\n')
 
@@ -300,6 +296,6 @@ if __name__ == '__main__':
     # Uncomment one of the following lines:
 
     # setup_expert_model(model='LCNN', band=(6000, 8000))
-    # setup_moe_model(model_name='POC_MELE_TRANSF_v2.pth', moe_configuration='mele', freeze_experts=False)
-    evaluate_moe_model(model_name='POC_MELE_TRANSF.pth')
+    setup_moe_model(model_name='POC_MELE_CAT.pth', moe_configuration='mele', freeze_experts=False)
+    # evaluate_moe_model(model_name='POC_MELE_TRANSF.pth')
 
