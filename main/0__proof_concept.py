@@ -18,7 +18,6 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-
 def train_expert(config):
     Path(config['save_model_folder']).mkdir(parents=True, exist_ok=True)
 
@@ -119,8 +118,10 @@ def train_moe(config):
     for expert, ckpt in zip(experts, ckpts):
         expert.load_state_dict(torch.load(ckpt, map_location=device))
 
-    moe_model = MOE_ICASSP(experts=experts, freezing=config['freeze_experts'])
-    # moe_model = MOE_WIFS(experts=experts, freezing=config['freeze_experts'])
+    if 'cat' in config['model_name'].lower():
+        moe_model = MOE_ICASSP(experts=experts, return_weights=True)
+    else:
+        moe_model = MOE_WIFS(experts=experts, return_weights=True)
 
     for expert in experts:
         expert.to(device)
@@ -201,8 +202,11 @@ def test_moe(checkpoint_path, save_folder, config):
     Path(save_folder).mkdir(parents=True, exist_ok=True)
 
     experts = [LCNN(return_emb=True) for _ in range(4)]
-    # moe_model = MOE_ICASSP(experts=experts, return_weights=True)
-    moe_model = MOE_WIFS(experts=experts, return_weights=True)
+
+    if 'cat' in checkpoint_path.lower():
+        moe_model = MOE_ICASSP(experts=experts, return_weights=True)
+    else:
+        moe_model = MOE_WIFS(experts=experts, return_weights=True)
 
     for expert in experts:
         expert.to(device)
@@ -221,9 +225,9 @@ def test_moe(checkpoint_path, save_folder, config):
 
     print(f'Total no. of test samples: {len(df_eval)}\n')
 
-    bands = [(0, 2000), (2000, 4000), (4000, 6000), (6000, 8000)]
 
-    # EVALUATE MODEL
+    # EVALUATE MODEL (Pseudo-fakes)
+    bands = [(0, 2000), (2000, 4000), (4000, 6000), (6000, 8000)]
     for selected_band in bands:
 
         band_as_string = f"{selected_band[0]}_{selected_band[1]}"
@@ -235,7 +239,7 @@ def test_moe(checkpoint_path, save_folder, config):
         result_path = os.path.join(band_dir, os.path.basename(checkpoint_path).replace('.pth', '.txt'))
 
         if os.path.exists(result_path):
-            print("Save path exists - Deleting file")
+            print("[INFO] Save path exists - Removed existing .txt")
             os.remove(result_path)
 
         file_eval = list(df_eval['path'])
@@ -248,6 +252,34 @@ def test_moe(checkpoint_path, save_folder, config):
 
         with torch.no_grad():
             eval_moe(moe_model, eval_loader, result_path, device)
+
+
+    # # EVALUATE MODEL (for Bonafide or Mixed results, modify dataloader too!)
+    # real_dir = "mixed"
+    # full_dir = os.path.join(save_folder, real_dir)
+    # os.makedirs(full_dir, exist_ok=True)
+    #
+    # print(f"Processing: {real_dir}\n")
+    #
+    # result_path = os.path.join(full_dir, os.path.basename(checkpoint_path).replace('.pth', '.txt'))
+    #
+    # if os.path.exists(result_path):
+    #     print("[INFO] Save path exists - Removed existing .txt")
+    #     os.remove(result_path)
+    #
+    # file_eval = list(df_eval['path'])
+    #
+    # # Bonafide (comment if-else in dataloader and uncomment last 3 lines)
+    # # eval_set = LoadExperimentalData(list_IDs=file_eval, config=config, is_eval=True)
+    #
+    # # Mixed (add return key in dataloader under eval False)
+    # eval_set = LoadExperimentalData(list_IDs=file_eval, config=config, multi_band=True, is_eval=False)
+    #
+    # eval_loader = DataLoader(eval_set, batch_size=config['batch_size'], shuffle=False, drop_last=False)
+    # del eval_set
+    #
+    # with torch.no_grad():
+    #     eval_moe(moe_model, eval_loader, result_path, device)
 
 
 if __name__ == '__main__':
@@ -284,10 +316,10 @@ if __name__ == '__main__':
 
         train_moe(config)
 
-    def evaluate_moe_model(model_name):
+    def evaluate_moe_model(model_name, save_folder):
         rootpath = os.path.join(config['rootpath'], 'checkpoints/POC')
         checkpoint_path = os.path.join(rootpath, model_name)
-        save_path = os.path.join(config['rootpath'], 'results/POC')
+        save_path = os.path.join(config['rootpath'], save_folder)
 
         test_moe(checkpoint_path, save_path, config)
 
@@ -296,6 +328,7 @@ if __name__ == '__main__':
     # Uncomment one of the following lines:
 
     # setup_expert_model(model='LCNN', band=(6000, 8000))
-    setup_moe_model(model_name='POC_MELE_CAT.pth', moe_configuration='mele', freeze_experts=False)
-    # evaluate_moe_model(model_name='POC_MELE_TRANSF.pth')
+    # setup_moe_model(model_name='POC_MELE_CAT.pth', moe_configuration='mele', freeze_experts=False)
+    evaluate_moe_model(model_name='POC_MELE_TRANSF.pth',
+                       save_folder='results/POC/spoof/F-only')
 

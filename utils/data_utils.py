@@ -306,12 +306,14 @@ def load_asv5_bonafide(paths, base_path):
             subdir = "flac_E_eval"
 
         df = pd.read_csv(p, sep=' ', header=None)
+        # df = df[df[2] == 'F']
         df = (
             df[df[8] == 'bonafide']
             .assign(path=lambda df: df[1].apply(
                 lambda x: os.path.join(base_path, subdir, f"{x}.flac")
             ))[['path']]
         )
+
         dfs.append(df)
 
     return pd.concat(dfs, ignore_index=True)
@@ -433,7 +435,7 @@ class LoadExperimentalData(Dataset):
         self.multi_band = multi_band
         self.is_eval = is_eval
 
-        self.bands = config.get("bands", [(0, 1000), (1000, 3000), (3000, 6000), (6000, 8000)])
+        self.bands = config.get("bands", [(0, 2000), (2000, 4000), (4000, 6000), (6000, 8000)])
         self.f_low, self.f_high = config.get("band", (0, 8000))
 
         self.p_perturb = config.get("p_perturb", 0.5)
@@ -482,20 +484,24 @@ class LoadExperimentalData(Dataset):
 
         key = os.path.splitext(os.path.basename(path))[0]
         label = 0
-        if random.random() < self.p_perturb:
-            if self.multi_band:
-                band = random.choice(self.bands)
-                mag = self.add_band_limited_noise(mag, band)
-            else:
-                mag = self.add_band_limited_noise(mag, (self.f_low, self.f_high))
-
-            label = 1
-
-        # mag = self.add_band_limited_noise(mag, (self.f_low, self.f_high))
-
-        mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
 
         if not self.is_eval:
+            if random.random() < self.p_perturb:
+                if self.multi_band:
+                    band = random.choice(self.bands)
+                    mag = self.add_band_limited_noise(mag, band)
+                else:
+                    mag = self.add_band_limited_noise(mag, (self.f_low, self.f_high))
+
+                label = 1
+            mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
             return mag, label
+
         else:
+            mag = self.add_band_limited_noise(mag, (self.f_low, self.f_high))
+            mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
             return mag, label, key
+
+        # # Shortcut 4 real data, comment if-else above
+        # mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
+        # return mag, label, key

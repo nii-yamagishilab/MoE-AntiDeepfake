@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 import numpy as np
+import os
 
 
 def train_epoch(train_loader, model, optim, criterion, device):
@@ -146,6 +147,11 @@ def eval_moe(model, data_loader, save_path, device):
     total_gating_weights = None
     batch_count = 0
 
+    npy_path = save_path.replace('.txt', '.npy')
+    if os.path.exists(npy_path):
+        os.remove(npy_path)
+        print(f'[INFO] Removed existing .npy file: {npy_path}')
+
     for batch_x, batch_y, utt_id in tqdm(data_loader, total=len(data_loader)):
         batch_x = batch_x.to(device)
 
@@ -159,7 +165,7 @@ def eval_moe(model, data_loader, save_path, device):
         batch_count += batch_x.size(0)
 
         averaged_gating_weights = total_gating_weights / batch_count  # shape: (num_experts)
-        np.save(save_path.replace('.txt', '.npy'), averaged_gating_weights)
+        np.save(npy_path, averaged_gating_weights)
 
         with open(save_path, 'a') as fh:
             for f, pred, lab in zip(utt_id, batch_score.tolist(), batch_y.tolist()):
