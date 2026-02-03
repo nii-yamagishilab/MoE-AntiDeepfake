@@ -484,18 +484,21 @@ class LoadExperimentalData(Dataset):
 
         key = os.path.splitext(os.path.basename(path))[0]
         label = 0
+        band_idx = 0
 
         if not self.is_eval:
             if random.random() < self.p_perturb:
                 if self.multi_band:
-                    band = random.choice(self.bands)
+                    band_idx = random.randrange(len(self.bands))
+                    band = self.bands[band_idx]
                     mag = self.add_band_limited_noise(mag, band)
                 else:
                     mag = self.add_band_limited_noise(mag, (self.f_low, self.f_high))
 
                 label = 1
             mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
-            return mag, label
+            # return mag, label
+            return mag, label, band_idx
 
         else:
             mag = self.add_band_limited_noise(mag, (self.f_low, self.f_high))

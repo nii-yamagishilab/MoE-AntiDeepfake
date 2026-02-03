@@ -3,6 +3,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+# class FlatteningLoss(nn.Module):
+#     def forward(self, x):
+#         return -F.log_softmax(x, dim=1).mean()
+
+class FlatteningLoss(nn.Module):
+    def __init__(self, num_experts=4):
+        super().__init__()
+        self.target_val = 1.0 / num_experts
+
+    def forward(self, x):
+        # x is already softmaxed
+        target = torch.full_like(x, self.target_val)
+        return F.mse_loss(x, target)
+
 class MOE_ICASSP(nn.Module):
     def __init__(self, experts, freezing=False, return_weights=False):
         super(MOE_ICASSP, self).__init__()
@@ -61,7 +75,7 @@ class MOE_ICASSP(nn.Module):
         weights_x_probs = gating_weights * expert_probs
 
         if self.return_weights:
-            return combined_output, weights_x_probs
+            return combined_output, gating_weights
         else:
             return combined_output
 
@@ -122,6 +136,6 @@ class MOE_WIFS(nn.Module):
         weights_x_probs = gating_weights * expert_probs
 
         if self.return_weights:
-            return combined_output, weights_x_probs
+            return combined_output, gating_weights
         else:
             return combined_output

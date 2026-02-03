@@ -4,6 +4,7 @@ save_model_folder: '/home/smg/v-viola/moe_antideepfake/checkpoints'
 save_results_folder: '/home/smg/v-viola/moe_antideepfake/results'
 
 asvspoof_path: '/Database/ASVspoof2019/public_released_data'
+asvspoof_5_path: '/Database/ASVspoof5'
 for_path: '/Database/Fake-or-Real-Dataset/for-original'
 add2022_path: '/Database/ADD2022'
 add2022_label_path: '/home/smg/v-viola/moe_antideepfake/baseline/config'

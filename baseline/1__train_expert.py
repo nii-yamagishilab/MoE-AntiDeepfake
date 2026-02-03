@@ -10,7 +10,7 @@ from models.aasist_model import AASIST
 from models.lcnn_model import LCNN
 from models.resnet_model import ResNet_LogSpec, ResNet_MelSpec
 from models.rawnet_model import RawNet
-from utils.training_utils import train_epoch, valid_epoch
+from utils.training_utils import train_epoch_expert, valid_epoch_expert
 from utils.data_utils import load_training_data_holdout, LoadTrainData
 from utils.utils import *
 
@@ -86,9 +86,9 @@ def main(config, training_data):
     for epoch in range(config['num_epochs']):
         if early_stopping < config['early_stopping']:
 
-            running_loss, train_accuracy = train_epoch(train_loader, model, optimizer, criterion, 'cuda')
+            running_loss, train_accuracy = train_epoch_expert(train_loader, model, optimizer, criterion, 'cuda')
             with torch.no_grad():
-                valid_loss, valid_accuracy = valid_epoch(dev_loader, model, criterion, 'cuda')
+                valid_loss, valid_accuracy = valid_epoch_expert(dev_loader, model, criterion, 'cuda')
 
             scheduler.step()
             print(f'Epoch: {epoch} - Train Loss: {running_loss:.5f} - Val Loss: '

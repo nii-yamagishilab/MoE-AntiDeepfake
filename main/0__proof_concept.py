@@ -8,7 +8,7 @@ from pathlib import Path
 from models.lcnn_model import LCNN
 from models.moe_models import MOE_ICASSP, MOE_WIFS
 from utils.data_utils import load_asv5_bonafide, LoadExperimentalData
-from utils.training_utils import train_epoch, valid_epoch, train_epoch_moe, valid_epoch_moe, eval_moe
+from utils.training_utils import train_epoch_expert, valid_epoch_expert, train_epoch_moe, valid_epoch_moe, eval_moe
 from utils.utils import *
 from sklearn.model_selection import train_test_split
 
@@ -78,9 +78,9 @@ def train_expert(config):
     for epoch in range(config['num_epochs']):
         if early_stopping < config['early_stopping']:
 
-            running_loss, train_accuracy = train_epoch(train_loader, model, optimizer, criterion, device)
+            running_loss, train_accuracy = train_epoch_expert(train_loader, model, optimizer, criterion, device)
             with torch.no_grad():
-                valid_loss, valid_accuracy = valid_epoch(dev_loader, model, criterion, device)
+                valid_loss, valid_accuracy = valid_epoch_expert(dev_loader, model, criterion, device)
 
             scheduler.step()
             print(f'Epoch: {epoch} - Train Loss: {running_loss:.5f} - Val Loss: '
@@ -111,6 +111,7 @@ def train_moe(config):
     experts = [LCNN(return_emb=True) for _ in range(4)]
     ckpts = [
         f'{config['save_model_folder']}/POC_LCNN_0-2000.pth',
+        # f'{config['save_model_folder']}/POC_LCNN_100-2000.pth',
         f'{config['save_model_folder']}/POC_LCNN_2000-4000.pth',
         f'{config['save_model_folder']}/POC_LCNN_4000-6000.pth',
         f'{config['save_model_folder']}/POC_LCNN_6000-8000.pth',
@@ -119,9 +120,9 @@ def train_moe(config):
         expert.load_state_dict(torch.load(ckpt, map_location=device))
 
     if 'cat' in config['model_name'].lower():
-        moe_model = MOE_ICASSP(experts=experts, return_weights=True)
+        moe_model = MOE_ICASSP(experts=experts, return_weights=False)
     else:
-        moe_model = MOE_WIFS(experts=experts, return_weights=True)
+        moe_model = MOE_WIFS(experts=experts, return_weights=False)
 
     for expert in experts:
         expert.to(device)
@@ -221,65 +222,69 @@ def test_moe(checkpoint_path, save_folder, config):
         ['/Database/ASVspoof5/protocols/ASVspoof5.eval.track_1.tsv'],
         '/Database/ASVspoof5')
 
-    df_eval = df_eval.sample(n=5000, random_state=config['seed']).reset_index(drop=True)
+    df_eval = df_eval.sample(n=10000, random_state=config['seed']).reset_index(drop=True)
 
     print(f'Total no. of test samples: {len(df_eval)}\n')
 
 
-    # EVALUATE MODEL (Pseudo-fakes)
-    bands = [(0, 2000), (2000, 4000), (4000, 6000), (6000, 8000)]
-    for selected_band in bands:
-
-        band_as_string = f"{selected_band[0]}_{selected_band[1]}"
-        band_dir = os.path.join(save_folder, band_as_string)
-        os.makedirs(band_dir, exist_ok=True)
-
-        print(f"Processing: {band_as_string}\n")
-
-        result_path = os.path.join(band_dir, os.path.basename(checkpoint_path).replace('.pth', '.txt'))
-
-        if os.path.exists(result_path):
-            print("[INFO] Save path exists - Removed existing .txt")
-            os.remove(result_path)
-
-        file_eval = list(df_eval['path'])
-
-        config['band'] = list(selected_band)
-
-        eval_set = LoadExperimentalData(list_IDs=file_eval, config=config, is_eval=True)
-        eval_loader = DataLoader(eval_set, batch_size=config['batch_size'], shuffle=False, drop_last=False)
-        del eval_set
-
-        with torch.no_grad():
-            eval_moe(moe_model, eval_loader, result_path, device)
-
-
-    # # EVALUATE MODEL (for Bonafide or Mixed results, modify dataloader too!)
-    # real_dir = "mixed"
-    # full_dir = os.path.join(save_folder, real_dir)
+    # # EVALUATE MODEL (Pseudo-fakes)
+    # fake_dir = "spoof"
+    # full_dir = os.path.join(save_folder, fake_dir)
     # os.makedirs(full_dir, exist_ok=True)
     #
-    # print(f"Processing: {real_dir}\n")
+    # bands = [(0, 2000), (2000, 4000), (4000, 6000), (6000, 8000)]
+    # for selected_band in bands:
     #
-    # result_path = os.path.join(full_dir, os.path.basename(checkpoint_path).replace('.pth', '.txt'))
+    #     band_as_string = f"{selected_band[0]}_{selected_band[1]}"
+    #     band_dir = os.path.join(full_dir, band_as_string)
+    #     os.makedirs(band_dir, exist_ok=True)
     #
-    # if os.path.exists(result_path):
-    #     print("[INFO] Save path exists - Removed existing .txt")
-    #     os.remove(result_path)
+    #     print(f"Processing: {band_as_string}\n")
     #
-    # file_eval = list(df_eval['path'])
+    #     result_path = os.path.join(band_dir, os.path.basename(checkpoint_path).replace('.pth', '.txt'))
     #
-    # # Bonafide (comment if-else in dataloader and uncomment last 3 lines)
-    # # eval_set = LoadExperimentalData(list_IDs=file_eval, config=config, is_eval=True)
+    #     if os.path.exists(result_path):
+    #         print("[INFO] Save path exists - Removed existing .txt")
+    #         os.remove(result_path)
     #
+    #     file_eval = list(df_eval['path'])
+    #
+    #     config['band'] = list(selected_band)
+    #
+    #     eval_set = LoadExperimentalData(list_IDs=file_eval, config=config, is_eval=True)
+    #     eval_loader = DataLoader(eval_set, batch_size=config['batch_size'], shuffle=False, drop_last=False)
+    #     del eval_set
+    #
+    #     with torch.no_grad():
+    #         eval_moe(moe_model, eval_loader, result_path, device)
+
+
+    # EVALUATE MODEL (for Bonafide or Mixed results, modify dataloader too!)
+    real_dir = "bonafide"  # 'bonafide' or 'mixed'
+    full_dir = os.path.join(save_folder, real_dir)
+    os.makedirs(full_dir, exist_ok=True)
+
+    print(f"Processing: {real_dir}\n")
+
+    result_path = os.path.join(full_dir, os.path.basename(checkpoint_path).replace('.pth', '.txt'))
+
+    if os.path.exists(result_path):
+        print("[INFO] Save path exists - Removed existing .txt")
+        os.remove(result_path)
+
+    file_eval = list(df_eval['path'])
+
+    # Bonafide (comment if-else in dataloader and uncomment last 3 lines)
+    eval_set = LoadExperimentalData(list_IDs=file_eval, config=config, is_eval=True)
+
     # # Mixed (add return key in dataloader under eval False)
     # eval_set = LoadExperimentalData(list_IDs=file_eval, config=config, multi_band=True, is_eval=False)
-    #
-    # eval_loader = DataLoader(eval_set, batch_size=config['batch_size'], shuffle=False, drop_last=False)
-    # del eval_set
-    #
-    # with torch.no_grad():
-    #     eval_moe(moe_model, eval_loader, result_path, device)
+
+    eval_loader = DataLoader(eval_set, batch_size=config['batch_size'], shuffle=False, drop_last=False)
+    del eval_set
+
+    with torch.no_grad():
+        eval_moe(moe_model, eval_loader, result_path, device)
 
 
 if __name__ == '__main__':
@@ -327,8 +332,11 @@ if __name__ == '__main__':
     # ===== Choose which to run =====
     # Uncomment one of the following lines:
 
-    # setup_expert_model(model='LCNN', band=(6000, 8000))
-    # setup_moe_model(model_name='POC_MELE_CAT.pth', moe_configuration='mele', freeze_experts=False)
-    evaluate_moe_model(model_name='POC_MELE_TRANSF.pth',
-                       save_folder='results/POC/spoof/F-only')
+    # setup_expert_model(model='LCNN',
+    #                    band=(100, 2000))
+    # setup_moe_model(model_name='trial_transf.pth',
+    #                 moe_configuration='mele',
+    #                 freeze_experts=True)
+    evaluate_moe_model(model_name='POC_MELE_TRANSF_FRZ_v2.pth',
+                       save_folder='results/POC')
 
