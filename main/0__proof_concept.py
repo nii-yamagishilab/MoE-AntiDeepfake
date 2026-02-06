@@ -223,9 +223,7 @@ def test_moe(checkpoint_path, save_folder, config):
         '/Database/ASVspoof5')
 
     df_eval = df_eval.sample(n=10000, random_state=config['seed']).reset_index(drop=True)
-
     print(f'Total no. of test samples: {len(df_eval)}\n')
-
 
     # # EVALUATE MODEL (Pseudo-fakes)
     # fake_dir = "spoof"
@@ -322,7 +320,7 @@ if __name__ == '__main__':
         train_moe(config)
 
     def evaluate_moe_model(model_name, save_folder):
-        rootpath = os.path.join(config['rootpath'], 'checkpoints/POC')
+        rootpath = os.path.join(config['rootpath'], 'checkpoints/gate_exp')
         checkpoint_path = os.path.join(rootpath, model_name)
         save_path = os.path.join(config['rootpath'], save_folder)
 
@@ -337,6 +335,6 @@ if __name__ == '__main__':
     # setup_moe_model(model_name='trial_transf.pth',
     #                 moe_configuration='mele',
     #                 freeze_experts=True)
-    evaluate_moe_model(model_name='POC_MELE_TRANSF_FRZ_v2.pth',
-                       save_folder='results/POC')
+    evaluate_moe_model(model_name='MELE_TRANSF_COMPOUND.pth',
+                       save_folder='results/gate_exp')
 

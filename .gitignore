@@ -6,6 +6,7 @@ pydevd-pycharm.egg
 checkpoints/
 results/
 baseline/csv_files/
+examples/
 
 # Ignore specific files
 baseline/config/args_paths.yaml

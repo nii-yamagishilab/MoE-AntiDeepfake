@@ -4,7 +4,7 @@ from tqdm import tqdm
 import numpy as np
 import os
 import torch.nn.functional as F
-
+import sys
 
 def train_epoch_expert(train_loader, model, optim, criterion, device):
     running_loss = 0
@@ -13,7 +13,7 @@ def train_epoch_expert(train_loader, model, optim, criterion, device):
     model.train()
 
     for batch_x, batch_y in tqdm(train_loader, total=len(train_loader)):
-
+        # sys.exit()
         batch_size = batch_x.size(0)
         num_total += batch_size
 

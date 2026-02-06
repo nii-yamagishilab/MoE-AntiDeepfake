@@ -486,25 +486,25 @@ class LoadExperimentalData(Dataset):
         label = 0
         band_idx = 0
 
-        if not self.is_eval:
-            if random.random() < self.p_perturb:
-                if self.multi_band:
-                    band_idx = random.randrange(len(self.bands))
-                    band = self.bands[band_idx]
-                    mag = self.add_band_limited_noise(mag, band)
-                else:
-                    mag = self.add_band_limited_noise(mag, (self.f_low, self.f_high))
+        # if not self.is_eval:
+        #     if random.random() < self.p_perturb:
+        #         if self.multi_band:
+        #             band_idx = random.randrange(len(self.bands))
+        #             band = self.bands[band_idx]
+        #             mag = self.add_band_limited_noise(mag, band)
+        #         else:
+        #             mag = self.add_band_limited_noise(mag, (self.f_low, self.f_high))
+        #
+        #         label = 1
+        #     mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
+        #     # return mag, label
+        #     return mag, label, band_idx
+        #
+        # else:
+        #     mag = self.add_band_limited_noise(mag, (self.f_low, self.f_high))
+        #     mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
+        #     return mag, label, key
 
-                label = 1
-            mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
-            # return mag, label
-            return mag, label, band_idx
-
-        else:
-            mag = self.add_band_limited_noise(mag, (self.f_low, self.f_high))
-            mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
-            return mag, label, key
-
-        # # Shortcut 4 real data, comment if-else above
-        # mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
-        # return mag, label, key
+        # Shortcut 4 real data, comment if-else above
+        mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
+        return mag, label, key
