@@ -132,6 +132,7 @@ class LoadTrainData_Pitch(Dataset):
             )
 
             if np.all(np.isnan(f0_traj)):
+                label = 1 if np.random.rand() < 0.5 else 0
                 return torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0), label
 
             r = random.random()
@@ -177,7 +178,7 @@ class LoadTrainData_Pitch(Dataset):
             # mask_new = mask_new ** 2
 
             att = 1  # attenuation factor, [0, 1]
-            emp = 2  # emphasis factor [>= 1]
+            emp = 8  # emphasis factor [>= 1]
             mask_old = torch.from_numpy(mask_old).float().to(mag.device)
             mask_new = torch.from_numpy(mask_new).float().to(mag.device)
             mag_new = mag * (1.0 - att * mask_old)
@@ -190,7 +191,6 @@ class LoadTrainData_Pitch(Dataset):
         mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
 
         return mag, label
-
 
 
 # import matplotlib.pyplot as plt

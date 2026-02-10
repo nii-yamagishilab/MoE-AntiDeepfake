@@ -8,6 +8,11 @@ results/
 baseline/csv_files/
 examples/
 
+notebooks/analyze_results.ipynb
+notebooks/analyze_results_v2.ipynb
+notebooks/pitch_mod_analyze.ipynb
+notebooks/MANIPULATIONS-Copy1.ipynb
+
 # Ignore specific files
 baseline/config/args_paths.yaml
 /*.txt
