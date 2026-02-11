@@ -12,7 +12,7 @@ fi
 # activate the environment
 eval "$(mamba shell hook --shell bash)"
 #eval "$(mamba shell.bash hook)"
-mamba activate jupyter_torch_cpu
+mamba activate  /home/smg/wang/WORK/WORK/TOOL/python-devs-new/envs/jupyter_torch_cpu
 
 # check jupyter exist
 jupyter=$(which jupyter 2> /dev/null)

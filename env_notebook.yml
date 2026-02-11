@@ -12,6 +12,7 @@ dependencies:
   - ffmpeg<7.0
   - ipykernel
   - jupyterlab
+  - ipywidgets
   - matplotlib
   - librosa==0.11.0
   - tqdm
@@ -20,3 +21,8 @@ dependencies:
   - conda-forge::pysoundfile
   - pandas
   - pyworld
+  - sklearn
+  - lazypredict
+  - gcc
+  - pip:
+    - pysptk
