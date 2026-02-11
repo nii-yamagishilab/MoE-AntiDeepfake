@@ -9,7 +9,7 @@ from models.resnet_model import ResNet_MelSpec, ResNet_LogSpec
 from utils.training_utils import eval_expert
 from utils.utils import *
 import torch
-from utils.data_utils import load_evaluation_data, LoadEvalData
+from utils.data_utils import load_evaluation_data, LoadEvalData_Baseline
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -56,7 +56,7 @@ def main(checkpoint_paths, model_classes):
             d_label_eval = dict(zip(df_eval['path'], df_eval['label']))
             file_eval = list(df_eval['path'])
 
-            eval_set = LoadEvalData(list_IDs=file_eval, labels=d_label_eval, config=config)
+            eval_set = LoadEvalData_Baseline(list_IDs=file_eval, labels=d_label_eval, config=config)
             eval_loader = DataLoader(eval_set, batch_size=config['batch_size'], shuffle=False, drop_last=False)
             del eval_set, d_label_eval
 

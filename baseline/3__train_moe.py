@@ -84,7 +84,7 @@ def main(config, freeze_experts=True):
     label_trn = dict(zip(df_train['path'], df_train['label']))
     file_train = list(df_train['path'])
 
-    train_set = LoadTrainData(list_IDs=file_train, labels=label_trn, config=config)
+    train_set = LoadTrainData_Baseline(list_IDs=file_train, labels=label_trn, config=config)
     train_loader = DataLoader(train_set, batch_size=config['batch_size_moe'], shuffle=True, drop_last=True)
     del train_set, label_trn
 
@@ -92,7 +92,7 @@ def main(config, freeze_experts=True):
     label_dev = dict(zip(df_dev['path'], df_dev['label']))
     file_dev = list(df_dev['path'])
 
-    dev_set = LoadTrainData(list_IDs=file_dev, labels=label_dev, config=config)
+    dev_set = LoadTrainData_Baseline(list_IDs=file_dev, labels=label_dev, config=config)
     dev_loader = DataLoader(dev_set, batch_size=config['batch_size_moe'], shuffle=False)
     del dev_set, label_dev
 

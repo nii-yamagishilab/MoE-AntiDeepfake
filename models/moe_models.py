@@ -54,8 +54,14 @@ class MOE_ICASSP(nn.Module):
                     param.requires_grad = False
 
     def forward(self, x):
-        outputs = [expert(x)[0] for expert in self.experts]
-        embeddings = [expert(x)[1] for expert in self.experts]
+
+        if isinstance(x, list):
+            results = [expert(feat) for expert, feat in zip(self.experts, x)]
+        else:
+            results = [expert(x) for expert in self.experts]
+
+        outputs = [res[0] for res in results]
+        embeddings = [res[1] for res in results]
 
         projected_embs = [proj(emb) for proj, emb in zip(self.proj, embeddings)]
 
@@ -117,9 +123,12 @@ class MOE_WIFS(nn.Module):
 
     def forward(self, x):
 
-        results = [expert(x) for expert in self.experts]
-        outputs = [res[0] for res in results]
+        if isinstance(x, list):
+            results = [expert(feat) for expert, feat in zip(self.experts, x)]
+        else:
+            results = [expert(x) for expert in self.experts]
 
+        outputs = [res[0] for res in results]
         embeddings = [res[1] for res in results]
 
         processed_embs = torch.stack([proc_emb(emb) for proc_emb, emb in zip(self.proc_emb, embeddings)], dim=1)

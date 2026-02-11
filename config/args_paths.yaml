@@ -3,8 +3,25 @@ rootpath: '/home/smg/v-viola/moe_antideepfake'
 save_model_folder: '/home/smg/v-viola/moe_antideepfake/checkpoints'
 save_results_folder: '/home/smg/v-viola/moe_antideepfake/results'
 
-asvspoof_path: '/Database/ASVspoof2019/public_released_data'
-asvspoof_5_path: '/Database/ASVspoof5'
+asv5:
+  base_path: '/Database/ASVspoof5'
+  train_file: "protocols/ASVspoof5.train.tsv"
+  dev_file: "protocols/ASVspoof5.dev.track_1.tsv"
+  filter_column: 8
+  path_column: 1
+  train_dir: "flac_T"
+  dev_dir: "flac_D"
+
+asv19:
+  base_path: '/Database/ASVspoof2019/public_released_data'
+  train_file: "LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt"
+  dev_file: "LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.dev.trl.txt"
+  filter_column: 4
+  path_column: 1
+  train_dir: "LA/ASVspoof2019_LA_train/flac"
+  dev_dir: "LA/ASVspoof2019_LA_dev/flac"
+
+
 for_path: '/Database/Fake-or-Real-Dataset/for-original'
 add2022_path: '/Database/ADD2022'
 add2022_label_path: '/home/smg/v-viola/moe_antideepfake/baseline/config'

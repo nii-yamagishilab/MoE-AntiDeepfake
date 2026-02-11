@@ -5,7 +5,7 @@ sys.path.insert(1, os.getcwd())
 from utils.utils import read_yaml, seed_everything
 from pathlib import Path
 
-from utils.data_utils import LoadEvalData, load_evaluation_data
+from utils.data_utils import LoadEvalData_Baseline, load_evaluation_data
 from utils.training_utils import eval_moe
 
 from torch.utils.data import DataLoader
@@ -94,7 +94,7 @@ def main(checkpoint_path, config):
         d_label_eval = dict(zip(df_eval['path'], df_eval['label']))
         file_eval = list(df_eval['path'])
 
-        eval_set = LoadEvalData(list_IDs=file_eval, labels=d_label_eval, config=config)
+        eval_set = LoadEvalData_Baseline(list_IDs=file_eval, labels=d_label_eval, config=config)
         eval_loader = DataLoader(eval_set, batch_size=config['batch_size'], shuffle=False, drop_last=False)
         del eval_set, d_label_eval
 

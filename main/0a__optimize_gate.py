@@ -7,7 +7,8 @@ from pathlib import Path
 
 from models.lcnn_model import LCNN
 from models.moe_models import MOE_ICASSP, MOE_WIFS, FlatteningLoss
-from utils.data_utils import load_asv5_bonafide, LoadExperimentalData
+from utils.data_utils import load_asv5_bonafide
+from utils.dataloader import Load_POC_Data
 from utils.training_utils import train_epoch_compound, valid_epoch_compound
 from utils.utils import *
 from sklearn.model_selection import train_test_split
@@ -60,13 +61,13 @@ def train_moe(config):
 
     # Define training dataloader
     file_train = list(df_train['path'])
-    train_set = LoadExperimentalData(list_IDs=file_train, config=config, multi_band=True)
+    train_set = Load_POC_Data(list_IDs=file_train, config=config, multi_band=True)
     train_loader = DataLoader(train_set, batch_size=config['batch_size_moe'], shuffle=True, drop_last=True)
     del train_set
 
     # Define validation dataloader
     file_dev = list(df_dev['path'])
-    dev_set = LoadExperimentalData(list_IDs=file_dev, config=config, multi_band=True)
+    dev_set = Load_POC_Data(list_IDs=file_dev, config=config, multi_band=True)
     dev_loader = DataLoader(dev_set, batch_size=config['batch_size_moe'], shuffle=False)
     del dev_set
 

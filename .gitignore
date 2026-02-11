@@ -7,6 +7,7 @@ checkpoints/
 results/
 baseline/csv_files/
 examples/
+temp_feat/
 
 notebooks/analyze_results.ipynb
 notebooks/analyze_results_v2.ipynb

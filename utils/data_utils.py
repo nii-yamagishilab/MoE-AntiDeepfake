@@ -1,16 +1,87 @@
 import os
-import librosa
+import sys
 from glob import glob
-import torchaudio
 import pandas as pd
 from pathlib import Path
-from torch.utils.data import Dataset
-import torch
-import random
 from sklearn.model_selection import train_test_split
+from utils.make_artifacts import *
+from utils.dataloader import LoadTrainData, LoadTrainData_v2
+from torch.utils.data import DataLoader
 
 
-############################## Build Dataframes #################################
+#--------------------------- Current Dataframes ---------------------------#
+
+def load_training_data(models_list, config):
+
+    if not config['merge']:
+        df_train, df_dev = make_df_bonafide(config)
+    else:
+        df_all = make_df_bonafide(config)
+        df_train, df_dev = train_test_split(
+            df_all,
+            test_size=0.2,
+            random_state=42,
+            shuffle=True
+        )
+
+    df_train = pd.DataFrame(df_train.values.repeat(2, axis=0), columns=df_train.columns)
+    df_dev = pd.DataFrame(df_dev.values.repeat(2, axis=0), columns=df_dev.columns)
+
+    # Define training dataloader
+    file_train = list(df_train['path'])
+    train_set = LoadTrainData(list_IDs=file_train, config=config)
+    # train_set = LoadTrainData_v2(list_IDs=file_train, models_list=models_list, config=config)
+    train_loader = DataLoader(train_set, batch_size=config['batch_size'], shuffle=True, drop_last=True)
+    del train_set
+
+    # Define validation dataloader
+    file_dev = list(df_dev['path'])
+    dev_set = LoadTrainData(list_IDs=file_dev, config=config)
+    # dev_set = LoadTrainData_v2(list_IDs=file_dev, models_list=models_list, config=config)
+    dev_loader = DataLoader(dev_set, batch_size=config['batch_size'], shuffle=False)
+    del dev_set
+
+    print(f'Total no. of training samples: {len(train_loader.dataset)}')
+    print(f'Total no. of dev samples: {len(dev_loader.dataset)} \n')
+
+    return train_loader, dev_loader
+
+def make_df_bonafide(config):
+    if config['train_data'] not in config:
+        print('Dataset not supported.')
+        sys.exit()
+
+    ds_name = config['train_data']
+    ds = config[ds_name]
+    base_path = ds['base_path']
+
+    def load_subset(file_path, dir_name, filter_col, path_col):
+        df = pd.read_csv(file_path, sep=' ', header=None)
+        return (
+            df[df[filter_col] == 'bonafide']
+              .assign(path=lambda df: df[path_col].apply(
+                  lambda x: os.path.join(base_path, dir_name, f"{x}.flac")
+              ))[['path']]
+        )
+
+    df_t = load_subset(os.path.join(base_path, ds['train_file']),
+                       ds['train_dir'],
+                       ds['filter_column'],
+                       ds['path_column'])
+
+    df_d = load_subset(os.path.join(base_path, ds['dev_file']),
+                       ds['dev_dir'],
+                       ds['filter_column'],
+                       ds['path_column'])
+
+    if config['merge']:
+        df = pd.concat([df_t, df_d], ignore_index=True)
+        return df
+    else:
+        return df_t, df_d
+
+
+#--------------------------- Baseline Dataframes ---------------------------#
 
 def load_asvspoof_data(file_name, base_path, label_dir):
     df = pd.read_csv(os.path.join(label_dir, file_name), sep=' ', header=None)
@@ -292,219 +363,3 @@ def load_evaluation_data(datasets, config):
         data['asv5'] = df_asv5
 
     return data
-
-def load_asv5_bonafide(paths, base_path):
-    dfs = []
-
-    for p in paths:
-        filename = os.path.basename(p).lower()
-        if "train" in filename:
-            subdir = "flac_T"
-        elif "dev" in filename:
-            subdir = "flac_D"
-        else:
-            subdir = "flac_E_eval"
-
-        df = pd.read_csv(p, sep=' ', header=None)
-        # df = df[df[2] == 'F']
-        df = (
-            df[df[8] == 'bonafide']
-            .assign(path=lambda df: df[1].apply(
-                lambda x: os.path.join(base_path, subdir, f"{x}.flac")
-            ))[['path']]
-        )
-
-        dfs.append(df)
-
-    return pd.concat(dfs, ignore_index=True)
-
-############################## Feed Dataloader ##################################
-
-def prepare_audio_window(x, max_len, is_eval=False):
-    x_len = x.shape[0]
-
-    while x_len < max_len:
-        num_samples = min(x_len, max_len - x_len)
-        # x = np.concatenate([x, x[:num_samples]], axis=0)
-        x = torch.cat([x, x[:num_samples]], dim=0)
-        x_len = x.shape[0]
-
-    if not is_eval:
-        last_valid_start_sample = x_len - max_len
-        if not last_valid_start_sample == 0:
-            start_sample = random.randrange(start=0, stop=last_valid_start_sample)
-        else:
-            start_sample = 0
-        x_pad = x[start_sample: start_sample + max_len]
-
-    else:
-        # TEST ON THE MIDDLE WINDOW
-        num_windows = round(x_len / max_len)
-        if num_windows % 2 == 1:  # odd no. of windows
-            middle = num_windows//2
-        else:  # even no. of windows
-            middle = (num_windows//2) - 1
-
-        start_sample = middle * max_len
-        x_pad = x[start_sample: start_sample + max_len]
-
-    return x_pad
-
-def load_audio_track(path, trim=False, normalize=False, sr=16000, top_db=40):
-    waveform, sample_rate = librosa.load(path, sr=None, mono=True)
-    waveform = torch.Tensor(waveform).unsqueeze(0)  # gotta fix torchaudio.load
-
-    # Resample if necessary
-    if sr != sample_rate:
-        resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=sr)
-        waveform = resampler(waveform)
-
-    # Normalize waveform
-    if normalize:
-        peak = waveform.abs().max()
-        if peak > 0:
-            waveform = waveform / peak
-
-    # Trim leading and trailing silence
-    if trim:
-        amplitude_threshold = 10 ** (-top_db / 20)
-        non_silent = (waveform.abs() > amplitude_threshold).nonzero(as_tuple=True)[1]
-        if non_silent.numel() > 0:
-            start = non_silent[0].item()
-            end = non_silent[-1].item() + 1
-            waveform = waveform[:, start:end]
-        else:
-            waveform = waveform[:, :0]
-
-    return waveform.squeeze()
-
-class LoadTrainData(Dataset):
-    def __init__(self, list_IDs, labels, config):
-        self.list_IDs = list_IDs
-        self.labels = labels
-        self.win_len = config['win_len']
-        self.fs = config['fs']
-        self.win_len_samples = int(self.win_len * self.fs)
-
-        df = pd.DataFrame(labels.items(), columns=['path', 'label'])
-        self.real_list = list(df[df['label'] == 0]['path'])
-        self.fake_list = list(df[df['label'] == 1]['path'])
-
-    def __len__(self):
-        return len(self.list_IDs)
-
-    def __getitem__(self, index):
-        # Balance real and fake samples in a batch
-        if index % 2 == 0:
-            track = random.choice(self.real_list)
-        else:
-            track = random.choice(self.fake_list)
-
-        x = load_audio_track(track, sr=self.fs)
-        x = prepare_audio_window(x, self.win_len_samples, is_eval=False)
-
-        y = self.labels[track]
-        return x, y
-
-class LoadEvalData(Dataset):
-    def __init__(self, list_IDs, labels, config):
-        self.list_IDs = list_IDs
-        self.labels = labels
-        self.win_len = config['win_len']
-        self.fs = config['fs']
-        self.win_len_samples = int(self.win_len * self.fs)
-
-    def __len__(self):
-        return len(self.list_IDs)
-
-    def __getitem__(self, index):
-        track = self.list_IDs[index]
-
-        x = load_audio_track(track, sr=self.fs)
-        x = prepare_audio_window(x, self.win_len_samples, is_eval=True)
-
-        y = self.labels[track]
-        return x, y, track
-
-class LoadExperimentalData(Dataset):
-    def __init__(self, list_IDs, config, multi_band=False, is_eval=False):
-        self.list_IDs = list_IDs
-        self.win_len = config['win_len']
-        self.fs = config['fs']
-        self.win_len_samples = int(self.win_len * self.fs)
-        self.multi_band = multi_band
-        self.is_eval = is_eval
-
-        self.bands = config.get("bands", [(0, 2000), (2000, 4000), (4000, 6000), (6000, 8000)])
-        self.f_low, self.f_high = config.get("band", (0, 8000))
-
-        self.p_perturb = config.get("p_perturb", 0.5)
-        self.snr_db = config.get("snr_db", 30)
-        self.n_fft = config.get("n_fft", 512)
-        self.hop = config.get("hop", 256)
-
-    def __len__(self):
-        return len(self.list_IDs)
-
-    def add_band_limited_noise(self, mag, band):
-        f_low, f_high = band
-        freqs = torch.fft.rfftfreq(self.n_fft, d=1.0 / self.fs)
-        freq_idx = torch.where((freqs >= f_low) & (freqs <= f_high))[0]
-
-        noise = torch.randn_like(mag)
-        # signal_power = torch.mean(mag[freq_idx, :] ** 2) + 1e-8
-        noise_power = torch.mean(noise[freq_idx, :] ** 2) + 1e-8
-        alpha = torch.sqrt(1.0 / (noise_power * 10 ** (self.snr_db / 10)))
-
-        band_mask = torch.zeros_like(mag)
-        band_mask[freq_idx, :] = 1.0
-
-        mag_noisy = mag + alpha * noise * band_mask
-        return mag_noisy
-
-# import matplotlib.pyplot as plt
-# import numpy as np
-# plt.figure(figsize=(5, 3))
-# plt.imshow(librosa.amplitude_to_db(mag_noisy.numpy(), ref=np.max), origin='lower', aspect='auto')
-# plt.show()
-
-    def __getitem__(self, idx):
-        path = self.list_IDs[idx]
-        x, _ = librosa.load(path, sr=self.fs)
-        x = torch.Tensor(x)
-        x = prepare_audio_window(x, self.win_len_samples, is_eval=False)
-
-        window = torch.hann_window(self.n_fft, device=x.device)
-        X = torch.stft(
-            x, n_fft=self.n_fft, hop_length=self.hop,
-            win_length=self.n_fft, window=window,
-            center=False, return_complex=True
-        )
-        mag = torch.abs(X)
-
-        key = os.path.splitext(os.path.basename(path))[0]
-        label = 0
-        band_idx = 0
-
-        # if not self.is_eval:
-        #     if random.random() < self.p_perturb:
-        #         if self.multi_band:
-        #             band_idx = random.randrange(len(self.bands))
-        #             band = self.bands[band_idx]
-        #             mag = self.add_band_limited_noise(mag, band)
-        #         else:
-        #             mag = self.add_band_limited_noise(mag, (self.f_low, self.f_high))
-        #
-        #         label = 1
-        #     mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
-        #     # return mag, label
-        #     return mag, label, band_idx
-        #
-        # else:
-        #     mag = self.add_band_limited_noise(mag, (self.f_low, self.f_high))
-        #     mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
-        #     return mag, label, key
-
-        # Shortcut 4 real data, comment if-else above
-        mag = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0)
-        return mag, label, key
