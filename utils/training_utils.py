@@ -1,8 +1,8 @@
 import torch
-import torch.nn as nn
 from tqdm import tqdm
 import numpy as np
 import os
+
 
 def train_epoch_expert(train_loader, model, optim, criterion, device):
     running_loss = 0
@@ -53,118 +53,29 @@ def valid_epoch_expert(data_loader, model, criterion, device):
     running_loss /= num_total
     return running_loss
 
-def eval_expert(model, data_loader, save_path, device):
+
+def eval_expert(model, data_loader, device):
     model.eval()
+    fname_list = []
+    score_list = []
+    label_list = []
 
     for batch_x, batch_y, utt_id in tqdm(data_loader, total=len(data_loader)):
-        fname_list = []
-        pred_list = []
-        label_list = []
+
+        if isinstance(batch_x, list):
+            batch_x = batch_x[0]
 
         batch_x = batch_x.to(device)
 
         batch_out = model(batch_x)
-        batch_out = nn.Softmax(dim=1)(batch_out)
-        batch_score = (batch_out[:, 1]).data.cpu().numpy().ravel()
+        # batch_out = nn.Softmax(dim=1)(batch_out)
+        batch_score = batch_out.cpu().numpy().ravel()
 
         fname_list.extend(utt_id)
-        pred_list.extend(batch_score.tolist())
+        score_list.extend(batch_score.tolist())
         label_list.extend(batch_y.tolist())
 
-        with open(save_path, 'w') as fh:
-            for f, pred, lab in zip(fname_list, pred_list, label_list):
-                fh.write('{} {} {}\n'.format(f, pred, lab))
-        fh.close()
-
-    print('Scores saved to {}\n'.format(save_path))
-
-
-def train_epoch_moe(train_loader, model, optim, criterion, device):
-    running_loss = 0
-    num_correct = 0.0
-    num_total = 0.0
-    model.train()
-
-    for batch_x, batch_y in tqdm(train_loader, total=len(train_loader)):
-        batch_size = batch_x.size(0)
-        num_total += batch_size
-
-        batch_x = [x.to(device) for x in batch_x]
-        batch_y = batch_y.view(-1).float().to(device)
-
-        batch_out = model(batch_x)
-        batch_out = batch_out[:, 1]
-
-        batch_loss = criterion(batch_out, batch_y)
-        running_loss += (batch_loss.item() * batch_size)
-
-        batch_pred = (batch_out >= 0.5).long()
-        num_correct += (batch_pred == batch_y.long()).sum(dim=0).item()
-
-        optim.zero_grad()
-        batch_loss.backward()
-        optim.step()
-
-    running_loss /= num_total
-    train_accuracy = (num_correct / num_total) * 100
-    return running_loss, train_accuracy
-
-def valid_epoch_moe(data_loader, model, criterion, device):
-    running_loss = 0
-    num_correct = 0.0
-    num_total = 0.0
-
-    model.eval()
-
-    for batch_x, batch_y in tqdm(data_loader, total=len(data_loader)):
-        batch_size = batch_x.size(0)
-        num_total += batch_size
-
-        batch_x = [x.to(device) for x in batch_x]
-        batch_y = batch_y.view(-1).float().to(device)
-
-        batch_out = model(batch_x)
-        batch_out = batch_out[:, 1]
-
-        batch_loss = criterion(batch_out, batch_y)
-        batch_pred = (batch_out >= 0.5).long()
-        num_correct += (batch_pred == batch_y.long()).sum(dim=0).item()
-        running_loss += (batch_loss.item() * batch_size)
-
-    valid_accuracy = (num_correct / num_total) * 100
-    running_loss /= num_total
-    return running_loss, valid_accuracy
-
-def eval_moe(model, data_loader, save_path, device):
-    model.eval()
-    total_gating_weights = None
-    batch_count = 0
-
-    npy_path = save_path.replace('.txt', '.npy')
-    if os.path.exists(npy_path):
-        os.remove(npy_path)
-        print(f'[INFO] Removed existing .npy file: {npy_path}')
-
-    for batch_x, batch_y, utt_id in tqdm(data_loader, total=len(data_loader)):
-        batch_x = batch_x.to(device)
-
-        batch_out, gating_weights = model(batch_x)
-        batch_score = batch_out[:, 1].detach().cpu().numpy()
-
-        if total_gating_weights is None:
-            total_gating_weights = np.sum(gating_weights.detach().cpu().numpy(), axis=0)
-        else:
-            total_gating_weights += np.sum(gating_weights.detach().cpu().numpy(), axis=0)
-        batch_count += batch_x.size(0)
-
-        averaged_gating_weights = total_gating_weights / batch_count  # shape: (num_experts)
-        np.save(npy_path, averaged_gating_weights)
-
-        with open(save_path, 'a') as fh:
-            for f, pred, lab in zip(utt_id, batch_score.tolist(), batch_y.tolist()):
-                fh.write('{} {} {}\n'.format(f, pred, lab))
-
-    print('Scores saved to {}\n'.format(save_path))
+    return score_list, label_list
 
 
 def train_epoch_compound(train_loader, model, optim, losses, config, device):
@@ -312,4 +223,91 @@ def valid_epoch_compound(data_loader, model, losses, config, device):
     }
     return epoch_losses
 
+#-------------------------------- BASELINE ---------------------------------#
 
+def train_epoch_moe(train_loader, model, optim, criterion, device):
+    running_loss = 0
+    num_correct = 0.0
+    num_total = 0.0
+    model.train()
+
+    for batch_x, batch_y in tqdm(train_loader, total=len(train_loader)):
+        batch_size = batch_x.size(0)
+        num_total += batch_size
+
+        batch_x = [x.to(device) for x in batch_x]
+        batch_y = batch_y.view(-1).float().to(device)
+
+        batch_out = model(batch_x)
+        batch_out = batch_out[:, 1]
+
+        batch_loss = criterion(batch_out, batch_y)
+        running_loss += (batch_loss.item() * batch_size)
+
+        batch_pred = (batch_out >= 0.5).long()
+        num_correct += (batch_pred == batch_y.long()).sum(dim=0).item()
+
+        optim.zero_grad()
+        batch_loss.backward()
+        optim.step()
+
+    running_loss /= num_total
+    train_accuracy = (num_correct / num_total) * 100
+    return running_loss, train_accuracy
+
+def valid_epoch_moe(data_loader, model, criterion, device):
+    running_loss = 0
+    num_correct = 0.0
+    num_total = 0.0
+
+    model.eval()
+
+    for batch_x, batch_y in tqdm(data_loader, total=len(data_loader)):
+        batch_size = batch_x.size(0)
+        num_total += batch_size
+
+        batch_x = [x.to(device) for x in batch_x]
+        batch_y = batch_y.view(-1).float().to(device)
+
+        batch_out = model(batch_x)
+        batch_out = batch_out[:, 1]
+
+        batch_loss = criterion(batch_out, batch_y)
+        batch_pred = (batch_out >= 0.5).long()
+        num_correct += (batch_pred == batch_y.long()).sum(dim=0).item()
+        running_loss += (batch_loss.item() * batch_size)
+
+    valid_accuracy = (num_correct / num_total) * 100
+    running_loss /= num_total
+    return running_loss, valid_accuracy
+
+def eval_moe(model, data_loader, save_path, device):
+    model.eval()
+    total_gating_weights = None
+    batch_count = 0
+
+    npy_path = save_path.replace('.txt', '.npy')
+    if os.path.exists(npy_path):
+        os.remove(npy_path)
+        print(f'[INFO] Removed existing .npy file: {npy_path}')
+
+    for batch_x, batch_y, utt_id in tqdm(data_loader, total=len(data_loader)):
+        batch_x = batch_x.to(device)
+
+        batch_out, gating_weights = model(batch_x)
+        batch_score = batch_out[:, 1].detach().cpu().numpy()
+
+        if total_gating_weights is None:
+            total_gating_weights = np.sum(gating_weights.detach().cpu().numpy(), axis=0)
+        else:
+            total_gating_weights += np.sum(gating_weights.detach().cpu().numpy(), axis=0)
+        batch_count += batch_x.size(0)
+
+        averaged_gating_weights = total_gating_weights / batch_count  # shape: (num_experts)
+        np.save(npy_path, averaged_gating_weights)
+
+        with open(save_path, 'a') as fh:
+            for f, pred, lab in zip(utt_id, batch_score.tolist(), batch_y.tolist()):
+                fh.write('{} {} {}\n'.format(f, pred, lab))
+
+    print('Scores saved to {}\n'.format(save_path))

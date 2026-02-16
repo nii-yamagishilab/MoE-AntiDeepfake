@@ -5,7 +5,7 @@ import pandas as pd
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 from utils.make_artifacts import *
-from utils.dataloader import LoadTrainData, LoadTrainData_v2
+from utils.dataloader import LoadTrainData, LoadTrainData_v2, LoadEvalData, LoadEvalData_v2
 from torch.utils.data import DataLoader
 
 
@@ -29,15 +29,15 @@ def load_training_data(models_list, config):
 
     # Define training dataloader
     file_train = list(df_train['path'])
-    train_set = LoadTrainData(list_IDs=file_train, config=config)
-    # train_set = LoadTrainData_v2(list_IDs=file_train, models_list=models_list, config=config)
+    # train_set = LoadTrainData(list_IDs=file_train, config=config)
+    train_set = LoadTrainData_v2(list_IDs=file_train, models_list=models_list, config=config)
     train_loader = DataLoader(train_set, batch_size=config['batch_size'], shuffle=True, drop_last=True)
     del train_set
 
     # Define validation dataloader
     file_dev = list(df_dev['path'])
-    dev_set = LoadTrainData(list_IDs=file_dev, config=config)
-    # dev_set = LoadTrainData_v2(list_IDs=file_dev, models_list=models_list, config=config)
+    # dev_set = LoadTrainData(list_IDs=file_dev, config=config)
+    dev_set = LoadTrainData_v2(list_IDs=file_dev, models_list=models_list, config=config)
     dev_loader = DataLoader(dev_set, batch_size=config['batch_size'], shuffle=False)
     del dev_set
 
@@ -45,6 +45,48 @@ def load_training_data(models_list, config):
     print(f'Total no. of dev samples: {len(dev_loader.dataset)} \n')
 
     return train_loader, dev_loader
+
+def load_evaluation_data(config):
+
+    ds = config['asv19']
+    df_eval = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
+
+    if not config['sanity']:
+        df_eval = (
+            df_eval[df_eval[3].isin(['-', 'A02'])]
+            .groupby(3, group_keys=False)
+            .sample(n=2500, random_state=config['seed'])
+            .assign(
+                path=lambda df: df[1].apply(
+                    lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac")
+                ),
+                label=lambda df: (df[3] == 'A02').astype(int)  # 1 for A09, 0 for '-'
+            )
+            [['path', 'label']]
+        )
+        file_eval = list(df_eval['path'])
+        labels_eval = list(df_eval['label'])
+        eval_set = LoadEvalData_v2(list_IDs=file_eval, labels=labels_eval, config=config)
+
+    else:
+        df_eval = (
+            df_eval[df_eval[4] == 'bonafide']
+            .sample(n=3000, random_state=config['seed'])
+            .assign(path=lambda df: df[1].apply(
+                lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac")
+            ))
+            [['path']]
+        )
+        df_eval = pd.DataFrame(df_eval.values.repeat(2, axis=0), columns=df_eval.columns)
+        file_eval = list(df_eval['path'])
+        eval_set = LoadEvalData(list_IDs=file_eval, config=config)
+
+    eval_loader = DataLoader(eval_set, batch_size=config['batch_size'], shuffle=False)
+    del eval_set
+    print(f'Total no. of eval samples: {len(eval_loader.dataset)} \n')
+
+    return eval_loader
+
 
 def make_df_bonafide(config):
     if config['train_data'] not in config:
@@ -207,7 +249,7 @@ def load_training_data_holdout(dataset_name, config):
 
     return df_train, df_dev
 
-def load_evaluation_data(datasets, config):
+def load_evaluation_data_baseline(datasets, config):
 
     if isinstance(datasets, str):
         datasets = [datasets]

@@ -2,6 +2,8 @@ import numpy as np
 import librosa
 from numpy import ndarray
 import random
+import scipy
+import pysptk
 
 
 #--------------------------- EXTRACTION ------------------------#
@@ -70,10 +72,8 @@ def f0_segment_shift(f0_traj, seg_len_s, hop_s, p_seg):
 
             if np.random.rand() < p_seg:
                 shift = random.choice([
-                    random.uniform(0.895, 0.945),
-                    random.uniform(1.065, 1.15)
-                    # random.uniform(0.10, 0.20),
-                    # random.uniform(1.80, 1.90)
+                    random.uniform(0.87, 0.92),
+                    random.uniform(1.08, 1.3)
                 ])
                 f0_mod[j:seg_j_end] *= shift
 
@@ -130,6 +130,21 @@ def f0_segment_shuffle(f0_traj, seg_len_s, hop_s, p_shuffle):
 
     return f0_mod
 
+def flatten_f0(f0_traj, strength=0.9, p=0.5):
+
+    f0_mod = f0_traj.copy()
+    voiced = ~np.isnan(f0_mod)
+
+    f0_ref = np.nanmedian(f0_mod)
+    mask = (np.random.rand(len(f0_mod)) < p) & voiced
+
+    f0_mod[mask] = (
+            (1.0 - strength) * f0_mod[mask]
+            + strength * f0_ref
+    )
+
+    return f0_mod
+
 def apply_f0_mod(f0_traj, mod='f0_shift', hop_s=0.016):
     if mod == 'f0_shift':
         seg_len = random.uniform(0.08, 0.16)  # 80–160 ms
@@ -153,11 +168,101 @@ def apply_f0_mod(f0_traj, mod='f0_shift', hop_s=0.016):
             p_shuffle=p_shuffle
         )
 
+    elif mod == 'flat_pitch':
+        f0_traj_mod = flatten_f0(f0_traj,
+                                 strength=0.5,
+                                 p=1)
+
     else:
         f0_traj_mod = None
         print("Does not recognize mod: ", mod)
 
     return f0_traj_mod
+
+
+#____________________________Temporal Oversmoothing______________________#
+
+def apply_lsf_mod(lsf, sigma=2.0):
+    """
+    Simulates oversmoothing on LSFs along the temporal axis.
+
+    Args:
+        lsf (np.ndarray): LSF array of shape (NumFrames, Order).
+        sigma (float): Smoothing strength. Higher values = more oversmoothing.
+
+    Returns:
+        np.ndarray: The smoothed LSF coefficients.
+    """
+    # We apply the filter along axis 0 (the temporal/frame axis)
+    # This blurs the transition of each individual LSF over time
+    smoothed_lsf = scipy.ndimage.gaussian_filter1d(lsf, sigma=sigma, axis=0)
+
+    # Ensure the LSF ordering property is maintained (stability)
+    # LSFs must be strictly increasing: 0 < w1 < w2 ... < pi
+    smoothed_lsf = np.sort(smoothed_lsf, axis=1)
+
+    return smoothed_lsf
+
+def lsf_manipulation_smoothing(lsf_traj):
+    return apply_lsf_mod(lsf_traj)
+
+def get_lsf(waveform, order=10, frame_length=400, hop_length=160):
+    """
+    Computes Line Spectral Frequencies (LSF) from a waveform.
+
+    Args:
+        waveform (np.ndarray): Input signal of shape (L,).
+        order (int): The order of the LPC analysis.
+        frame_length (int): Length of each windowed frame.
+        hop_length (int): Number of samples between successive frames.
+
+    Returns:
+        np.ndarray: LSF coefficients of shape (NumFrames, order).
+    """
+    # Ensure waveform is float64 (standard for SPTK C-wrappers)
+    waveform = waveform.astype(np.float64)
+
+    # 1. Framing
+    # Instead of util.frame, we'll use a list comprehension for reliability
+    frames = [waveform[i:i + frame_length] for i in range(0, len(waveform) - frame_length, hop_length)]
+    frames = np.stack(frames)
+
+    # 2. Scipy Windowing
+    # 'blackman' is standard, but 'hamming' or 'hann' are also common
+    window = scipy.signal.get_window('blackman', frame_length, fftbins=False)
+    windowed_frames = frames * window
+
+    # 3. LPC Analysis
+    # Note: lpc returns (order + 1) coefficients
+    lpc_coeffs = pysptk.lpc(windowed_frames, order)
+
+    # 4. Convert LPC to LSF
+    try:
+        # 2. Attempt conversion
+        lsf = pysptk.lpc2lsp(lpc_coeffs)
+        return lsf
+    except RuntimeError:
+        # 3. Fallback: If it fails, the filter was likely unstable.
+        # We can 'stabilize' it by slightly moving roots inside the circle
+        # (Often called bandwidth expansion)
+        gamma = 0.9
+        lpc_stable = lpc_coeffs * (gamma ** np.arange(lpc_coeffs.shape[1]))
+        return pysptk.lpc2lsp(lpc_stable)
+
+    return lsf
+
+def lsf_extraction(wav, stft_params, lsf_order=20):
+    """ just wrapper over extrac_f0
+    """
+    lsf_traj = get_lsf(
+        wav + 1e-6 * np.random.randn(len(wav)),
+        order=lsf_order,
+        frame_length=stft_params.win_size,
+        hop_length=stft_params.hop_size
+    )
+
+    return lsf_traj
+
 
 
 # import matplotlib.pyplot as plt

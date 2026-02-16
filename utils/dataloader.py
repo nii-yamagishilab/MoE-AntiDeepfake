@@ -5,12 +5,11 @@ from torch.utils.data import Dataset
 import torch
 from utils.make_artifacts import *
 from scipy.ndimage import gaussian_filter
-
+import math
 
 MANIPULATIONS_REGISTRY = {
-    "LSTM": "f0_shift",
-    "BILSTM": "f0_shift",
-    "GRU": "f0_shift",
+    # "BILSTM": "flat_pitch",
+    "GRU": "oversmooth",
 }
 
 #--------------------------- COMMON FUNCTIONS ------------------------#
@@ -92,7 +91,7 @@ class STFTWindowParams:
 
 def extract_feature(x, mod, stft_params):
 
-    if mod in ['f0_shift', 'f0_shuffle']:
+    if mod in ['f0_shift', 'f0_shuffle', 'flat_pitch']:
         feat = extract_f0(
             x,
             fs=stft_params.sample_rate,
@@ -101,6 +100,8 @@ def extract_feature(x, mod, stft_params):
         )
         feat = np.nan_to_num(feat, nan=0.0)
 
+    elif mod == 'oversmooth':
+        feat = lsf_extraction(x, stft_params=stft_params, lsf_order=20)
     else:
         feat = None
         print(f"Mod not recognized.")
@@ -109,8 +110,10 @@ def extract_feature(x, mod, stft_params):
 
 def apply_manipulation(feat, mod, stft_params):
 
-    if mod in ['f0_shift', 'f0_shuffle']:
+    if mod in ['f0_shift', 'f0_shuffle', 'flat_pitch']:
         feat_mod = apply_f0_mod(feat, mod=mod, hop_s=stft_params.hop_sec)
+    elif mod == 'oversmooth':
+        feat_mod = lsf_manipulation_smoothing(feat)
     else:
         feat_mod = None
         print("Not recognized: ", mod)
@@ -152,6 +155,8 @@ class LoadTrainData(Dataset):
 
         if np.all(feat == 0.0):
             label = 1 if np.random.rand() < 0.5 else 0
+            # feat = 0.0  # Here for brevity, modularity broken, gotta move somewhere else
+            # print("Warning: no f0 detected")
             feat = torch.tensor(feat, dtype=torch.float32)
             return feat, label
 
@@ -160,6 +165,12 @@ class LoadTrainData(Dataset):
             feat_mod = apply_manipulation(feat, mod=self.mod, stft_params=self.stft_params)
             feat = feat_mod
             label = 1
+
+        # # Here for brevity, modularity broken, gotta move somewhere else
+        # feat = np.mean(np.abs(np.diff(feat[feat != 0.0])))
+        # if math.isnan(feat):
+        #     # print("Warning: value was NaN, resetting to 0.0")
+        #     feat = 0.0
 
         feat = torch.tensor(feat, dtype=torch.float32)
         return feat, label
@@ -189,7 +200,7 @@ class LoadTrainData_v2(Dataset):
         for model_type in self.models_list:
             manip_type = MANIPULATIONS_REGISTRY[model_type]
 
-            feat = extract_feature(x, manip_type, self.stft_params)
+            feat = extract_feature(x.numpy(), manip_type, self.stft_params)
 
             # if the feature is corrupted somehow -> shuffle the label
             # TODO: now ok for f0, to be made more general
@@ -206,6 +217,74 @@ class LoadTrainData_v2(Dataset):
 
         return feat_list, label
 
+class LoadEvalData(Dataset):
+    def __init__(self, list_IDs, config):
+        self.list_IDs = list_IDs
+
+        self.mod = config['mod']
+        self.fs = config['fs']
+        self.win_len = config['win_len']
+        self.stft_params = STFTWindowParams()
+
+    def __len__(self):
+        return len(self.list_IDs)
+
+    def __getitem__(self, idx):
+        path = self.list_IDs[idx]
+        x = load_audio_track(path, trim=True, normalize=True)
+        x = torch.Tensor(x)
+        x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=True)
+
+        label = 0
+        feat_list = []
+
+        manip_type = self.mod
+        feat = extract_feature(x.numpy(), manip_type, self.stft_params)
+
+        # if the feature is corrupted somehow -> shuffle the label
+        # TODO: now ok for f0, to be made more general
+        if np.all(feat == 0.0):
+            label = 1 if np.random.rand() < 0.5 else 0
+
+        elif idx % 2 == 0:
+            feat_mod = apply_manipulation(feat, mod=manip_type, stft_params=self.stft_params)
+            feat = feat_mod
+            label = 1
+
+        feat = torch.tensor(feat, dtype=torch.float32)
+        feat_list.append(feat)
+
+        name = os.path.splitext(os.path.basename(path))[0]
+
+        return feat_list, label, name
+
+class LoadEvalData_v2(Dataset):
+    def __init__(self, list_IDs, labels, config):
+        self.list_IDs = list_IDs
+        self.labels = labels
+
+        self.mod = config['mod']
+        self.stft_params = STFTWindowParams()
+
+        self.win_len = config['win_len']
+        self.fs = config['fs']
+        self.win_len_samples = int(self.win_len * self.fs)
+
+    def __len__(self):
+        return len(self.list_IDs)
+
+    def __getitem__(self, index):
+        track = self.list_IDs[index]
+        y = self.labels[index]
+
+        x = load_audio_track(track, trim=True, normalize=True)
+        x = torch.Tensor(x)
+        x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=True)
+
+        manip_type = self.mod
+        feat = extract_feature(x.numpy(), manip_type, self.stft_params)
+
+        return torch.tensor(feat, dtype=torch.float32), y, track
 
 #------------------------------ PoC STUFF ----------------------------#
 
@@ -496,9 +575,9 @@ class LoadEvalData_Baseline(Dataset):
 
     def __getitem__(self, index):
         track = self.list_IDs[index]
+        y = self.labels[index]
 
         x = load_audio_track(track, sr=self.fs)
         x = prepare_audio_window(x, self.win_len_samples, is_eval=True)
 
-        y = self.labels[track]
         return x, y, track

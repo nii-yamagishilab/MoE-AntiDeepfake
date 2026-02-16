@@ -21,7 +21,7 @@ class PreEmphasis(torch.nn.Module):
 
 
 class LCNN(nn.Module):
-    def __init__(self, return_emb=False, num_class=2):
+    def __init__(self, return_emb=False):
         super(LCNN, self).__init__()
 
         self.return_emb = return_emb
@@ -61,7 +61,7 @@ class LCNN(nn.Module):
         self.fc29 = nn.Linear(32 * 16 * 8, 128)
         self.batchnorm31 = nn.BatchNorm1d(64)
         self.dropout2 = nn.Dropout(0.7)
-        self.fc32 = nn.Linear(64, num_class)
+        self.fc32 = nn.Linear(64, 1)
 
         self.torchfbank = torch.nn.Sequential(
             PreEmphasis(),
@@ -132,12 +132,12 @@ class LCNN(nn.Module):
         emb1 = self.fc29(x)  # use this for MILE_ORIGINAL
         x = self.mfm2(emb1)  # halves the dimension (128->64), use for MELE_ORIGINAL
         emb2 = self.batchnorm31(x)
-        logits = self.fc32(emb2)
+        logit = self.fc32(emb2).squeeze(1)
 
         # output = self.softmax(logits)
 
         if self.return_emb:
-            return logits, emb1
+            return logit, emb1
         else:
-            return logits
+            return logit
 

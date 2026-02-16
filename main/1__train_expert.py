@@ -5,7 +5,8 @@ sys.path.insert(1, os.getcwd())
 from pathlib import Path
 from utils.utils import *
 from utils.data_utils import load_training_data
-from models.feat_1D_models import LSTM_Model, BiLSTM_Model, GRU_Model
+from models.feat_1D_models import LSTM_Model, BiLSTM_Model, GRU_Model, MLP_Model
+from models.lcnn_model import LCNN
 from utils.training_utils import train_epoch_expert, valid_epoch_expert
 
 import warnings
@@ -16,12 +17,16 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def select_model(model_name):
 
-    if model_name == 'lstm':
+    if model_name == 'mlp':
+        model = MLP_Model(return_emb=False)
+    elif model_name == 'lstm':
         model = LSTM_Model(return_emb=False)
     elif model_name == 'bilstm':
         model = BiLSTM_Model(return_emb=False)
     elif model_name == 'gru':
         model = GRU_Model(return_emb=False)
+    elif model_name == 'lcnn':
+        model = LCNN(return_emb=False)
     else:
         print('Model name not recognized.')
         sys.exit()
@@ -53,13 +58,12 @@ def main(config):
     for epoch in range(config['num_epochs']):
         if early_stopping < config['early_stopping']:
 
-            running_loss = train_epoch_expert(train_loader, model, optimizer, criterion, 'cuda')
+            running_loss = train_epoch_expert(train_loader, model, optimizer, criterion, device)
             with torch.no_grad():
-                valid_loss = valid_epoch_expert(dev_loader, model, criterion, 'cuda')
+                valid_loss = valid_epoch_expert(dev_loader, model, criterion, device)
 
             scheduler.step(valid_loss)
             print(f'Epoch: {epoch} - Train Loss: {running_loss:.5f} - Val Loss: {valid_loss:.5f}')
-
             if valid_loss < best_loss:
                 print(f'Best model found at epoch {epoch}')
                 torch.save(model.state_dict(), os.path.join(config['save_model_folder'], config['model_name']))
@@ -72,10 +76,10 @@ def main(config):
             print(f'Training stopped after {epoch} epochs - Best Val Loss {best_loss:.2f}')
             break
 
-        if early_stopping >= config['early_stopping']:
-            print(f"Early stopping triggered. Best validation loss: {best_loss:.6f} at epoch {best_epoch} \n")
-        else:
-            print(f"Best validation loss: {best_loss:.6f} at epoch {best_epoch} \n")
+    if early_stopping >= config['early_stopping']:
+        print(f"Early stopping triggered. Best validation loss: {best_loss:.6f} at epoch {best_epoch} \n")
+    else:
+        print(f"Best validation loss: {best_loss:.6f} at epoch {best_epoch} \n")
 
 
 if __name__ == '__main__':
@@ -90,10 +94,10 @@ if __name__ == '__main__':
     # ------------------- PLEASE DEFINE SETTINGS: ------------------ #
 
     config['train_data'] = 'asv19'
-    config['merge'] = False
+    config['merge'] = True
 
-    config['model'] = 'bilstm'
-    config['mod'] = 'f0_shift'
+    config['model'] = 'gru'
+    config['mod'] = 'oversmooth'
 
     # ----------------------------- end --------------------------- #
 
@@ -103,3 +107,17 @@ if __name__ == '__main__':
     print(f"Model name: {config['model_name']}")
 
     main(config)
+
+
+
+# filename = "/home/smg/v-viola/moe_antideepfake/trial.out.txt"
+# warning_counts = {}
+#
+# with open(filename, "r") as f:
+#     for line in f:
+#         line = line.strip()
+#         if line.startswith("Warning:"):
+#             warning_counts[line] = warning_counts.get(line, 0) + 1
+#
+# for warning, count in warning_counts.items():
+#     print(f"{warning}: {count} times")

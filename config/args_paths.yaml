@@ -16,10 +16,12 @@ asv19:
   base_path: '/Database/ASVspoof2019/public_released_data'
   train_file: "LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt"
   dev_file: "LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.dev.trl.txt"
+  eval_file: "LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt"
   filter_column: 4
   path_column: 1
   train_dir: "LA/ASVspoof2019_LA_train/flac"
   dev_dir: "LA/ASVspoof2019_LA_dev/flac"
+  eval_dir: "LA/ASVspoof2019_LA_eval/flac"
 
 
 for_path: '/Database/Fake-or-Real-Dataset/for-original'

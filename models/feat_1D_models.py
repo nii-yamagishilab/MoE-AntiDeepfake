@@ -1,5 +1,24 @@
-import torch
 import torch.nn as nn
+
+
+class MLP_Model(nn.Module):
+    def __init__(self, hidden_size=64, return_emb=False):
+        super(MLP_Model, self).__init__()
+        self.return_emb = return_emb
+        self.hidden_size = hidden_size
+
+        self.fc1 = nn.Linear(1, hidden_size)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(hidden_size, 1)
+
+    def forward(self, x):
+        emb = self.relu(self.fc1(x.unsqueeze(1)))
+        out = self.fc2(emb).squeeze(1)
+
+        if not self.return_emb:
+            return out
+        else:
+            return out, emb
 
 
 class LSTM_Model(nn.Module):
@@ -13,7 +32,7 @@ class LSTM_Model(nn.Module):
         self.fc = nn.Linear(hidden_size, 1)
 
     def forward(self, x):
-        x = x.unsqueeze(-1) # expected x: (batch, seq_len, 1)
+        x = x.unsqueeze(-1)  # expected x: (batch, seq_len, n_feat)
         out, _ = self.lstm(x)  # (batch, seq_len, hidden_size)
         emb = out[:, -1, :]  # take last timestep
         out = self.fc(emb).squeeze(1)
