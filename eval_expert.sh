@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=eval_expert
-#SBATCH --out="flat_pitch_gru.out.txt"
+#SBATCH --out="eval_f0_incons_mlp.out.txt"
 #SBATCH --time=03:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1

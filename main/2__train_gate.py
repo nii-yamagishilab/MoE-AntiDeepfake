@@ -4,7 +4,7 @@ sys.path.insert(1, os.getcwd())
 
 from pathlib import Path
 from utils.data_utils import load_training_data
-from models.feat_1D_models import *
+from models.small_models import *
 from models.lcnn_model import LCNN
 from models.moe_models import MOE_ICASSP, MOE_WIFS, FlatteningLoss
 from utils.training_utils import train_epoch_compound, valid_epoch_compound

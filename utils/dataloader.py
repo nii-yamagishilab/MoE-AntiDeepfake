@@ -8,11 +8,13 @@ from scipy.ndimage import gaussian_filter
 import math
 
 MANIPULATIONS_REGISTRY = {
-    # "BILSTM": "flat_pitch",
-    "GRU": "oversmooth",
+    "GRU": "flat_pitch",
+    # "GRU": "oversmooth",
+    # "LCNN": "min_phase"
+    "LCNN": "perf_sil"
 }
 
-#--------------------------- COMMON FUNCTIONS ------------------------#
+#-------------------------------------- COMMON FUNCTIONS ----------------------------------#
 
 def prepare_audio_window(x, max_len, is_eval=False):
     x_len = x.shape[0]
@@ -89,9 +91,43 @@ class STFTWindowParams:
     def next_pow_2(x):
         return 2 ** (x - 1).bit_length()
 
+def autocorr_decay(x, max_lag=50):
+    x = x - np.mean(x)
+    ac = np.correlate(x, x, mode='full')
+    ac = ac[len(ac)//2:]
+    ac /= ac[0] + 1e-8
+    return np.mean(ac[1:max_lag])
+
+def extract_proxy_scalars(feat):
+    f0v = feat[feat != 0.0]
+    if len(f0v) < 3:
+        return np.zeros(10, dtype=np.float32)
+
+    df0 = np.diff(f0v)
+    ddf0 = np.diff(df0)
+
+    f0_std = np.std(f0v)
+    df0_std = np.std(df0)
+
+    f0_ac_decay = autocorr_decay(f0v)
+    df0_mean_abs = np.mean(np.abs(df0))
+    df0_max_abs = np.max(np.abs(df0))
+    df0_p95 = np.percentile(np.abs(df0), 95)
+    thr = np.median(np.abs(df0)) * 3
+    df0_outlier_ratio = np.mean(np.abs(df0) > thr)
+    ddf0_std = np.std(ddf0)
+    dyn_ratio = df0_std / f0_std
+    curv_ratio = ddf0_std / df0_std
+
+    return np.array([f0_std, f0_ac_decay, df0_std, df0_mean_abs, df0_max_abs,
+                     df0_p95, df0_outlier_ratio, ddf0_std, dyn_ratio, curv_ratio])
+
+
+#--------------------------------------- WRAPPERS --------------------------------------#
+
 def extract_feature(x, mod, stft_params):
 
-    if mod in ['f0_shift', 'f0_shuffle', 'flat_pitch']:
+    if mod in ['f0_incons', 'flat_pitch']:
         feat = extract_f0(
             x,
             fs=stft_params.sample_rate,
@@ -102,6 +138,13 @@ def extract_feature(x, mod, stft_params):
 
     elif mod == 'oversmooth':
         feat = lsf_extraction(x, stft_params=stft_params, lsf_order=20)
+
+    elif mod == 'perf_sil':
+        feat = spec_extraction(x, stft_params)
+
+    elif mod == 'min_phase':
+        feat = phase_extraction(x, key='unwrapped', stft_params=stft_params)
+
     else:
         feat = None
         print(f"Mod not recognized.")
@@ -110,23 +153,45 @@ def extract_feature(x, mod, stft_params):
 
 def apply_manipulation(feat, mod, stft_params):
 
-    if mod in ['f0_shift', 'f0_shuffle', 'flat_pitch']:
+    if mod in ['f0_incons', 'flat_pitch']:
         feat_mod = apply_f0_mod(feat, mod=mod, hop_s=stft_params.hop_sec)
+
     elif mod == 'oversmooth':
         feat_mod = lsf_manipulation_smoothing(feat)
+
+    elif mod == 'perf_sil':
+        feat_mod = spec_manipulation(feat, stft_params)  # here feat is the raw wav
+
+    elif mod == 'min_phase':
+        feat_mod = phase_manipulation(feat, key='unwrapped', stft_params=stft_params)  # here feat is the raw wav
+
     else:
         feat_mod = None
         print("Not recognized: ", mod)
 
     return feat_mod
 
-#----------------------------- DATALOADERS  --------------------------#
 
-class LoadTrainData(Dataset):
+#------------------------------------------ DATALOADERS  ------------------------------------------#
+
+class LoadTrainData_f0(Dataset):
     def __init__(self, list_IDs, config):
         self.list_IDs = list_IDs
 
         self.mod = config["mod"]
+
+        # Proxy scalar features means + stds to standardize for MLP
+        # NOTE: computed on current merged train set (~ 8000 samples), recompute if modifying partitions
+        if self.mod == 'flat_pitch':
+            self.mean = torch.tensor([27.0140, 0.0085994, 17.8460, 8.7920, 62.7760,
+                                 44.2460, 0.22918, 21.5950, 0.61841, 1.1907])
+            self.std = torch.tensor([16.7317, 0.0561, 13.9265, 7.0892, 43.4203,
+                                37.1950, 0.1023, 16.4970, 0.3066, 0.3428])
+        else:
+            self.mean = torch.tensor([22.3930, 0.00345, 12.7420, 6.7704, 53.6440,
+                                      28.0330, 0.20125, 18.2490, 0.55215, 1.3292])
+            self.std = torch.tensor([13.8908, 0.0507, 9.3971, 4.5291, 42.6525,
+                                22.3822, 0.0860, 13.9947, 0.2508, 0.3560])
 
         self.fs = config['fs']
         self.win_len = config['win_len']
@@ -139,13 +204,12 @@ class LoadTrainData(Dataset):
         path = self.list_IDs[idx]
 
         filename = os.path.splitext(os.path.basename(path))[0]
-        file = f'/home/smg/v-viola/moe_antideepfake/temp_feat/f0_asv19/{filename}.npy'
+        file = f'/home/smg/v-viola/moe_antideepfake/temp_feat/f0_asv19_no_pad/{filename}.npy'
 
         if not os.path.exists(file):
             x = load_audio_track(path, trim=True, normalize=True)
             x = torch.Tensor(x)
-            x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=False)
-
+            # x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=False)
             feat = extract_feature(x, self.mod, self.stft_params)
             np.save(file, feat)
         else:
@@ -155,8 +219,7 @@ class LoadTrainData(Dataset):
 
         if np.all(feat == 0.0):
             label = 1 if np.random.rand() < 0.5 else 0
-            # feat = 0.0  # Here for brevity, modularity broken, gotta move somewhere else
-            # print("Warning: no f0 detected")
+            feat = np.zeros(10)
             feat = torch.tensor(feat, dtype=torch.float32)
             return feat, label
 
@@ -166,16 +229,21 @@ class LoadTrainData(Dataset):
             feat = feat_mod
             label = 1
 
-        # # Here for brevity, modularity broken, gotta move somewhere else
-        # feat = np.mean(np.abs(np.diff(feat[feat != 0.0])))
-        # if math.isnan(feat):
-        #     # print("Warning: value was NaN, resetting to 0.0")
-        #     feat = 0.0
+        feat = extract_proxy_scalars(feat)
 
-        feat = torch.tensor(feat, dtype=torch.float32)
+        if np.all(feat == 0.0):
+            label = 1 if np.random.rand() < 0.5 else 0
+            feat = torch.tensor(np.zeros(10), dtype=torch.float32)
+        else:
+            feat = torch.tensor(feat, dtype=torch.float32)
+            # STANDARDIZATION
+            if self.mean is not None:
+                feat = (feat - self.mean) / (self.std + 1e-8)
+
         return feat, label
 
-class LoadTrainData_v2(Dataset):
+
+class LoadTrainData(Dataset):
     def __init__(self, list_IDs, models_list, config):
         self.list_IDs = list_IDs
 
@@ -202,13 +270,18 @@ class LoadTrainData_v2(Dataset):
 
             feat = extract_feature(x.numpy(), manip_type, self.stft_params)
 
-            # if the feature is corrupted somehow -> shuffle the label
-            # TODO: now ok for f0, to be made more general
-            if np.all(feat == 0.0):
-                label = 1 if np.random.rand() < 0.5 else 0
+            # # if the feature is corrupted somehow -> shuffle the label
+            # # TODO: now ok for f0, to be made more general
+            # if np.all(feat == 0.0):
+            #     label = 1 if np.random.rand() < 0.5 else 0
 
-            elif idx % 2 == 0:
-                feat_mod = apply_manipulation(feat, mod=manip_type, stft_params=self.stft_params)
+            if idx % 2 == 0:
+
+                if manip_type not in ['min_phase', 'perf_sil']:
+                    feat_mod = apply_manipulation(feat, mod=manip_type, stft_params=self.stft_params)
+                else:
+                    feat_mod = apply_manipulation(x.numpy(), mod=manip_type, stft_params=self.stft_params)
+
                 feat = feat_mod
                 label = 1
 
@@ -217,7 +290,7 @@ class LoadTrainData_v2(Dataset):
 
         return feat_list, label
 
-class LoadEvalData(Dataset):
+class LoadEvalData_SanityCheck(Dataset):
     def __init__(self, list_IDs, config):
         self.list_IDs = list_IDs
 
@@ -226,46 +299,89 @@ class LoadEvalData(Dataset):
         self.win_len = config['win_len']
         self.stft_params = STFTWindowParams()
 
+        # Proxy scalar features means + stds to standardize for MLP
+        # NOTE: computed on current merged train set (~ 8000 samples), recompute if modifying partitions
+        if self.mod == 'flat_pitch':
+            self.mean = torch.tensor([27.0140, 0.0085994, 17.8460, 8.7920, 62.7760,
+                                 44.2460, 0.22918, 21.5950, 0.61841, 1.1907])
+            self.std = torch.tensor([16.7317, 0.0561, 13.9265, 7.0892, 43.4203,
+                                37.1950, 0.1023, 16.4970, 0.3066, 0.3428])
+        else:
+            self.mean = torch.tensor([22.3930, 0.00345, 12.7420, 6.7704, 53.6440,
+                                      28.0330, 0.20125, 18.2490, 0.55215, 1.3292])
+            self.std = torch.tensor([13.8908, 0.0507, 9.3971, 4.5291, 42.6525,
+                                22.3822, 0.0860, 13.9947, 0.2508, 0.3560])
+
     def __len__(self):
         return len(self.list_IDs)
 
     def __getitem__(self, idx):
         path = self.list_IDs[idx]
+        track = os.path.splitext(os.path.basename(path))[0]
+
         x = load_audio_track(path, trim=True, normalize=True)
         x = torch.Tensor(x)
-        x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=True)
+        # x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=True)
 
         label = 0
-        feat_list = []
 
         manip_type = self.mod
         feat = extract_feature(x.numpy(), manip_type, self.stft_params)
 
-        # if the feature is corrupted somehow -> shuffle the label
-        # TODO: now ok for f0, to be made more general
-        if np.all(feat == 0.0):
-            label = 1 if np.random.rand() < 0.5 else 0
+        if idx % 2 == 0:
 
-        elif idx % 2 == 0:
-            feat_mod = apply_manipulation(feat, mod=manip_type, stft_params=self.stft_params)
+            if manip_type not in ['min_phase', 'perf_sil']:
+                feat_mod = apply_manipulation(feat, mod=manip_type, stft_params=self.stft_params)
+            else:
+                feat_mod = apply_manipulation(x.numpy(), mod=manip_type, stft_params=self.stft_params)
+
             feat = feat_mod
             label = 1
 
-        feat = torch.tensor(feat, dtype=torch.float32)
-        feat_list.append(feat)
+        if manip_type in ['flat_pitch', 'f0_incons']:
 
-        name = os.path.splitext(os.path.basename(path))[0]
+            if np.all(feat == 0.0):
+                label = 1 if np.random.rand() < 0.5 else 0
+                feat = np.zeros(10)
+                feat = torch.tensor(feat, dtype=torch.float32)
+                return feat, label, track
 
-        return feat_list, label, name
+            feat = extract_proxy_scalars(feat)
 
-class LoadEvalData_v2(Dataset):
+            if np.all(feat == 0.0):
+                label = 1 if np.random.rand() < 0.5 else 0
+                feat = torch.tensor(np.zeros(10), dtype=torch.float32)
+            else:
+                feat = torch.tensor(feat, dtype=torch.float32)
+                # STANDARDIZATION
+                if self.mean is not None:
+                    feat = (feat - self.mean) / (self.std + 1e-8)
+            return feat, label, track
+
+        return torch.tensor(feat, dtype=torch.float32), label, track
+
+
+class LoadEvalData_Deepfake(Dataset):
     def __init__(self, list_IDs, labels, config):
         self.list_IDs = list_IDs
         self.labels = labels
 
         self.mod = config['mod']
-        self.stft_params = STFTWindowParams()
 
+        # Proxy scalar features means + stds to standardize for MLP
+        # NOTE: computed on current merged train set (~ 8000 samples), recompute if modifying partitions
+        if self.mod == 'flat_pitch':
+            self.mean = torch.tensor([27.0140, 0.0085994, 17.8460, 8.7920, 62.7760,
+                                 44.2460, 0.22918, 21.5950, 0.61841, 1.1907])
+            self.std = torch.tensor([16.7317, 0.0561, 13.9265, 7.0892, 43.4203,
+                                37.1950, 0.1023, 16.4970, 0.3066, 0.3428])
+        else:
+            self.mean = torch.tensor([22.3930, 0.00345, 12.7420, 6.7704, 53.6440,
+                                      28.0330, 0.20125, 18.2490, 0.55215, 1.3292])
+            self.std = torch.tensor([13.8908, 0.0507, 9.3971, 4.5291, 42.6525,
+                                22.3822, 0.0860, 13.9947, 0.2508, 0.3560])
+
+        self.stft_params = STFTWindowParams()
         self.win_len = config['win_len']
         self.fs = config['fs']
         self.win_len_samples = int(self.win_len * self.fs)
@@ -275,16 +391,37 @@ class LoadEvalData_v2(Dataset):
 
     def __getitem__(self, index):
         track = self.list_IDs[index]
-        y = self.labels[index]
+        label = self.labels[index]
 
         x = load_audio_track(track, trim=True, normalize=True)
         x = torch.Tensor(x)
-        x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=True)
+        # x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=True)
 
         manip_type = self.mod
         feat = extract_feature(x.numpy(), manip_type, self.stft_params)
 
-        return torch.tensor(feat, dtype=torch.float32), y, track
+        if manip_type in ['flat_pitch', 'f0_incons']:
+
+            if np.all(feat == 0.0):
+                label = 1 if np.random.rand() < 0.5 else 0
+                feat = np.zeros(10)
+                feat = torch.tensor(feat, dtype=torch.float32)
+                return feat, label, track
+
+            feat = extract_proxy_scalars(feat)
+
+            if np.all(feat == 0.0):
+                label = 1 if np.random.rand() < 0.5 else 0
+                feat = torch.tensor(np.zeros(10), dtype=torch.float32)
+            else:
+                feat = torch.tensor(feat, dtype=torch.float32)
+                # STANDARDIZATION
+                if self.mean is not None:
+                    feat = (feat - self.mean) / (self.std + 1e-8)
+            return feat, label, track
+
+        else:
+            return torch.tensor(feat, dtype=torch.float32), label, track
 
 #------------------------------ PoC STUFF ----------------------------#
 

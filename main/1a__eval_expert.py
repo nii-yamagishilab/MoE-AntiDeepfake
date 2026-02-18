@@ -5,7 +5,8 @@ sys.path.insert(1, os.getcwd())
 from torch.utils.data import DataLoader
 from pathlib import Path
 from utils.data_utils import load_evaluation_data
-from models.feat_1D_models import BiLSTM_Model, LSTM_Model, GRU_Model
+from models.small_models import BiLSTM_Model, LSTM_Model, GRU_Model, MLP_Model, MLP_Model_v2
+from models.lcnn_model import LCNN
 from utils.training_utils import eval_expert
 from utils.utils import *
 import torch
@@ -49,10 +50,29 @@ if __name__ == '__main__':
     del config_paths
     seed_everything(config['seed'])
 
-    config['mod'] = 'flat_pitch'
-    config['model'] = 'gru'
+    # --------------------- PLEASE DEFINE ----------------------#
+
+    config['mod'] = 'f0_incons'
     config['sanity'] = False
-    model_classes = [GRU_Model]
+
+    config['model'] = 'mlp'
+    model_classes = [MLP_Model_v2]
+
+    # ------------------------- Thanks -------------------------#
+
+    if config['mod'] == 'f0_incons':
+        config['target_df'] = 'A04'
+    elif config['mod'] == 'flat_pitch':
+        config['target_df'] = 'A02'
+    elif config['mod'] == 'perf_sil':
+        config['target_df'] = 'A09'
+    else:
+        config['target_df'] = 'A03'
+
+    print(f"\nManipulation type: {config['mod']}")
+    print(f"Is sanity check? {config['sanity']}")
+    print(f"Target deepfake: {config['target_df']}\n")
+
 
     model_names = [
         f'{config['mod'].upper()}_{config['model'].upper()}.pth',

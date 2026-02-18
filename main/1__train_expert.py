@@ -5,7 +5,7 @@ sys.path.insert(1, os.getcwd())
 from pathlib import Path
 from utils.utils import *
 from utils.data_utils import load_training_data
-from models.feat_1D_models import LSTM_Model, BiLSTM_Model, GRU_Model, MLP_Model
+from models.small_models import LSTM_Model, BiLSTM_Model, GRU_Model, MLP_Model, MLP_Model_v2
 from models.lcnn_model import LCNN
 from utils.training_utils import train_epoch_expert, valid_epoch_expert
 
@@ -18,7 +18,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 def select_model(model_name):
 
     if model_name == 'mlp':
-        model = MLP_Model(return_emb=False)
+        model = MLP_Model_v2(return_emb=False)
     elif model_name == 'lstm':
         model = LSTM_Model(return_emb=False)
     elif model_name == 'bilstm':
@@ -91,15 +91,17 @@ if __name__ == '__main__':
     del config_paths
     seed_everything(config['seed'])
 
+
     # ------------------- PLEASE DEFINE SETTINGS: ------------------ #
 
     config['train_data'] = 'asv19'
     config['merge'] = True
 
-    config['model'] = 'gru'
-    config['mod'] = 'oversmooth'
+    config['model'] = 'mlp'
+    config['mod'] = 'f0_incons'
 
-    # ----------------------------- end --------------------------- #
+    # ----------------------------- Thanks --------------------------- #
+
 
     config["model_name"] = f'{config['mod'].upper()}_{config["model"].upper()}.pth'
 
@@ -109,8 +111,7 @@ if __name__ == '__main__':
     main(config)
 
 
-
-# filename = "/home/smg/v-viola/moe_antideepfake/trial.out.txt"
+# filename = "/home/smg/v-viola/moe_antideepfake/train_flat_pitch_mlp.out.txt"
 # warning_counts = {}
 #
 # with open(filename, "r") as f:
@@ -120,4 +121,4 @@ if __name__ == '__main__':
 #             warning_counts[line] = warning_counts.get(line, 0) + 1
 #
 # for warning, count in warning_counts.items():
-#     print(f"{warning}: {count} times")
+#     print(f"{warning} -> {count} times")
