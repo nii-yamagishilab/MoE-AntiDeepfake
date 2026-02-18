@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 
-INPUT_SIZE = 10
+INPUT_SIZE = 257
 
 
 class LSTM_Model(nn.Module):
@@ -79,7 +79,7 @@ class GRU_Model(nn.Module):
 
 
 class MLP_Model(nn.Module):
-    def __init__(self, hidden_size=16, input_size=INPUT_SIZE, return_emb=False):
+    def __init__(self, hidden_size=16, input_size=10, return_emb=False):
         super(MLP_Model, self).__init__()
         self.return_emb = return_emb
 
@@ -103,7 +103,7 @@ class MLP_Model(nn.Module):
 
 
 class MLP_Model_v2(nn.Module):
-    def __init__(self, input_size=INPUT_SIZE, return_emb=False):
+    def __init__(self, input_size=21, return_emb=False):
         super(MLP_Model_v2, self).__init__()
         self.return_emb = return_emb
 

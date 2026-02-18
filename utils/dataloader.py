@@ -9,7 +9,7 @@ import math
 
 MANIPULATIONS_REGISTRY = {
     "GRU": "flat_pitch",
-    # "GRU": "oversmooth",
+    "MLP": "oversmooth",
     # "LCNN": "min_phase"
     "LCNN": "perf_sil"
 }
@@ -98,7 +98,7 @@ def autocorr_decay(x, max_lag=50):
     ac /= ac[0] + 1e-8
     return np.mean(ac[1:max_lag])
 
-def extract_proxy_scalars(feat):
+def extract_proxy_scalars_F0(feat):
     f0v = feat[feat != 0.0]
     if len(f0v) < 3:
         return np.zeros(10, dtype=np.float32)
@@ -121,6 +121,14 @@ def extract_proxy_scalars(feat):
 
     return np.array([f0_std, f0_ac_decay, df0_std, df0_mean_abs, df0_max_abs,
                      df0_p95, df0_outlier_ratio, ddf0_std, dyn_ratio, curv_ratio])
+
+def extract_proxy_scalars_LSF(feat, lsf_order=21):
+    feats = []
+    for i in np.arange(lsf_order):
+        lsp_var = np.var(feat[i])
+        feats.append(lsp_var)
+
+    return np.array(feats)
 
 
 #--------------------------------------- WRAPPERS --------------------------------------#
@@ -229,7 +237,7 @@ class LoadTrainData_f0(Dataset):
             feat = feat_mod
             label = 1
 
-        feat = extract_proxy_scalars(feat)
+        feat = extract_proxy_scalars_F0(feat)
 
         if np.all(feat == 0.0):
             label = 1 if np.random.rand() < 0.5 else 0
@@ -260,7 +268,7 @@ class LoadTrainData(Dataset):
         path = self.list_IDs[idx]
         x = load_audio_track(path, trim=True, normalize=True)
         x = torch.Tensor(x)
-        x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=False)
+        # x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=False)
 
         label = 0
         feat_list = []
@@ -269,11 +277,6 @@ class LoadTrainData(Dataset):
             manip_type = MANIPULATIONS_REGISTRY[model_type]
 
             feat = extract_feature(x.numpy(), manip_type, self.stft_params)
-
-            # # if the feature is corrupted somehow -> shuffle the label
-            # # TODO: now ok for f0, to be made more general
-            # if np.all(feat == 0.0):
-            #     label = 1 if np.random.rand() < 0.5 else 0
 
             if idx % 2 == 0:
 
@@ -284,6 +287,9 @@ class LoadTrainData(Dataset):
 
                 feat = feat_mod
                 label = 1
+
+            if manip_type == 'oversmooth':
+                feat = extract_proxy_scalars_LSF(feat, lsf_order=feat.shape[1])
 
             feat = torch.tensor(feat, dtype=torch.float32)
             feat_list.append(feat)
@@ -346,7 +352,7 @@ class LoadEvalData_SanityCheck(Dataset):
                 feat = torch.tensor(feat, dtype=torch.float32)
                 return feat, label, track
 
-            feat = extract_proxy_scalars(feat)
+            feat = extract_proxy_scalars_F0(feat)
 
             if np.all(feat == 0.0):
                 label = 1 if np.random.rand() < 0.5 else 0
@@ -359,7 +365,6 @@ class LoadEvalData_SanityCheck(Dataset):
             return feat, label, track
 
         return torch.tensor(feat, dtype=torch.float32), label, track
-
 
 class LoadEvalData_Deepfake(Dataset):
     def __init__(self, list_IDs, labels, config):
@@ -408,7 +413,7 @@ class LoadEvalData_Deepfake(Dataset):
                 feat = torch.tensor(feat, dtype=torch.float32)
                 return feat, label, track
 
-            feat = extract_proxy_scalars(feat)
+            feat = extract_proxy_scalars_F0(feat)
 
             if np.all(feat == 0.0):
                 label = 1 if np.random.rand() < 0.5 else 0

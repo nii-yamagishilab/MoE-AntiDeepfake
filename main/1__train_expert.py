@@ -5,7 +5,7 @@ sys.path.insert(1, os.getcwd())
 from pathlib import Path
 from utils.utils import *
 from utils.data_utils import load_training_data
-from models.small_models import LSTM_Model, BiLSTM_Model, GRU_Model, MLP_Model, MLP_Model_v2
+from models.small_models import LSTM_Model, BiLSTM_Model, GRU_Model, MLP_Model_v2
 from models.lcnn_model import LCNN
 from utils.training_utils import train_epoch_expert, valid_epoch_expert
 
@@ -34,7 +34,6 @@ def select_model(model_name):
     model = (model).to(device)
 
     return model
-
 
 def main(config):
     config['save_model_folder'] = os.path.join(config['save_model_folder'], 'experts')
@@ -98,7 +97,7 @@ if __name__ == '__main__':
     config['merge'] = True
 
     config['model'] = 'mlp'
-    config['mod'] = 'f0_incons'
+    config['mod'] = 'oversmooth'
 
     # ----------------------------- Thanks --------------------------- #
 

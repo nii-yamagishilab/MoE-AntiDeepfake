@@ -5,7 +5,7 @@ sys.path.insert(1, os.getcwd())
 from torch.utils.data import DataLoader
 from pathlib import Path
 from utils.data_utils import load_evaluation_data
-from models.small_models import BiLSTM_Model, LSTM_Model, GRU_Model, MLP_Model, MLP_Model_v2
+from models.small_models import BiLSTM_Model, LSTM_Model, GRU_Model, MLP_Model
 from models.lcnn_model import LCNN
 from utils.training_utils import eval_expert
 from utils.utils import *
@@ -26,7 +26,7 @@ def main(checkpoint_paths, model_classes):
         expert = expert.to(device)
         expert.load_state_dict(torch.load(model_path, map_location=device))
         experts.append(expert)
-        print(f'\nEVALUATION - Model loaded: {os.path.basename(model_path)}\n')
+        print(f'Model loaded: {os.path.basename(model_path)}\n')
 
     # LOAD EVAL DATA
     eval_loader = load_evaluation_data(config)
@@ -52,26 +52,28 @@ if __name__ == '__main__':
 
     # --------------------- PLEASE DEFINE ----------------------#
 
-    config['mod'] = 'f0_incons'
+    config['mod'] = 'flat_pitch'
     config['sanity'] = False
 
     config['model'] = 'mlp'
-    model_classes = [MLP_Model_v2]
+    model_classes = [MLP_Model]
 
     # ------------------------- Thanks -------------------------#
 
     if config['mod'] == 'f0_incons':
         config['target_df'] = 'A04'
     elif config['mod'] == 'flat_pitch':
-        config['target_df'] = 'A02'
+        # config['target_df'] = 'A02'
+        config['target_df'] = 'A10'
     elif config['mod'] == 'perf_sil':
         config['target_df'] = 'A09'
     else:
         config['target_df'] = 'A03'
 
-    print(f"\nManipulation type: {config['mod']}")
+    print("\nEVALUATION MODE\n")
+    print(f"Manipulation type: {config['mod']}")
     print(f"Is sanity check? {config['sanity']}")
-    print(f"Target deepfake: {config['target_df']}\n")
+    print(f"Target deepfake: CUSTOM \n")
 
 
     model_names = [

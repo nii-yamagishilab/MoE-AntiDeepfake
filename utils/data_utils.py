@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 from utils.make_artifacts import *
 from utils.dataloader import LoadTrainData_f0, LoadTrainData, LoadEvalData_SanityCheck, LoadEvalData_Deepfake
 from torch.utils.data import DataLoader
-
+from glob import glob
 
 #--------------------------- Current Dataframes ---------------------------#
 
@@ -29,15 +29,15 @@ def load_training_data(models_list, config):
 
     # Define training dataloader
     file_train = list(df_train['path'])
-    train_set = LoadTrainData_f0(list_IDs=file_train, config=config)
-    # train_set = LoadTrainData(list_IDs=file_train, models_list=models_list, config=config)
+    # train_set = LoadTrainData_f0(list_IDs=file_train, config=config)
+    train_set = LoadTrainData(list_IDs=file_train, models_list=models_list, config=config)
     train_loader = DataLoader(train_set, batch_size=config['batch_size'], shuffle=True, drop_last=True)
     del train_set
 
     # Define validation dataloader
     file_dev = list(df_dev['path'])
-    dev_set = LoadTrainData_f0(list_IDs=file_dev, config=config)
-    # dev_set = LoadTrainData(list_IDs=file_dev, models_list=models_list, config=config)
+    # dev_set = LoadTrainData_f0(list_IDs=file_dev, config=config)
+    dev_set = LoadTrainData(list_IDs=file_dev, models_list=models_list, config=config)
     dev_loader = DataLoader(dev_set, batch_size=config['batch_size'], shuffle=False)
     del dev_set
 
@@ -49,7 +49,7 @@ def load_training_data(models_list, config):
 def load_evaluation_data(config):
 
     ds = config['asv19']
-    df_eval = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
+    df_eval = pd.read_csv(os.path.join(ds['base_path'], ds['eval_file']), sep=' ', header=None)
 
     if not config['sanity']:
         print("Test on actual deepfake data.")
@@ -59,12 +59,40 @@ def load_evaluation_data(config):
             .sample(n=2500, random_state=config['seed'])
             .assign(
                 path=lambda df: df[1].apply(
-                    lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac")
+                    lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac")
                 ),
                 label=lambda df: (df[3] == config['target_df']).astype(int)
             )
             [['path', 'label']]
         )
+
+        if config['mod'] == "flat_pitch":
+            real_files = glob("/Database/keithito_LJSpeech-1.1/wavs/*.wav")
+            real_sample = random.sample(real_files, 3000)
+            df_real = pd.DataFrame({
+                "path": real_sample,
+                "label": 0
+            })
+
+            root = "/Database/TIMIT-TTS/CLEAN/single_speaker"
+            exclude = {"fastspeech2", "fastpitch", "talknet"}
+
+            models = [
+                d for d in os.listdir(root)
+                if os.path.isdir(os.path.join(root, d)) and d not in exclude]
+            fake_files = []
+            for model in models:
+                fake_files.extend(
+                    glob(os.path.join(root, model, "**", "*.wav"), recursive=True)
+                )
+            df_fake = pd.DataFrame({
+                "path": fake_files,
+                "label": 1
+            })
+
+            df_eval = pd.concat([df_real, df_fake], ignore_index=True)
+
+
         file_eval = list(df_eval['path'])
         labels_eval = list(df_eval['label'])
         eval_set = LoadEvalData_Deepfake(list_IDs=file_eval, labels=labels_eval, config=config)
