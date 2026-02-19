@@ -5,7 +5,7 @@ sys.path.insert(1, os.getcwd())
 from pathlib import Path
 from utils.utils import *
 from utils.data_utils import load_training_data
-from models.small_models import LSTM_Model, BiLSTM_Model, GRU_Model, MLP_Model_v2
+from models.small_models import LSTM_Model, BiLSTM_Model, GRU_Model, MLP_Model
 from models.lcnn_model import LCNN
 from utils.training_utils import train_epoch_expert, valid_epoch_expert
 
@@ -18,7 +18,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 def select_model(model_name):
 
     if model_name == 'mlp':
-        model = MLP_Model_v2(return_emb=False)
+        model = MLP_Model(return_emb=False)
     elif model_name == 'lstm':
         model = LSTM_Model(return_emb=False)
     elif model_name == 'bilstm':
@@ -97,7 +97,7 @@ if __name__ == '__main__':
     config['merge'] = True
 
     config['model'] = 'mlp'
-    config['mod'] = 'oversmooth'
+    config['mod'] = 'flat_pitch'
 
     # ----------------------------- Thanks --------------------------- #
 

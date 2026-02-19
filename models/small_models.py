@@ -1,19 +1,17 @@
 import torch.nn as nn
 
 
-INPUT_SIZE = 257
-
-
 class LSTM_Model(nn.Module):
-    def __init__(self, hidden_size=64, num_layers=1, input_size=INPUT_SIZE, return_emb=False):
+    def __init__(self, hidden_size=64, num_layers=1, input_size=257, return_emb=False):
         super(LSTM_Model, self).__init__()
 
         self.return_emb = return_emb
         self.input_size = input_size
+        self.latent_dim = hidden_size
 
-        self.lstm = nn.LSTM(input_size=self.input_size, hidden_size=hidden_size,
+        self.lstm = nn.LSTM(input_size=self.input_size, hidden_size=self.latent_dim,
                             num_layers=num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_size, 1)
+        self.fc = nn.Linear(self.latent_dim, 1)
 
     def forward(self, x):
         if self.input_size == 1:
@@ -29,16 +27,17 @@ class LSTM_Model(nn.Module):
 
 
 class BiLSTM_Model(nn.Module):
-    def __init__(self, hidden_size=64, num_layers=1, input_size=INPUT_SIZE, return_emb=False):
+    def __init__(self, hidden_size=64, num_layers=1, input_size=257, return_emb=False):
         super(BiLSTM_Model, self).__init__()
 
         self.return_emb = return_emb
         self.input_size = input_size
+        self.latent_dim = hidden_size
 
-        self.bilstm = nn.LSTM(input_size=self.input_size, hidden_size=hidden_size,
+        self.bilstm = nn.LSTM(input_size=self.input_size, hidden_size=self.latent_dim,
                               num_layers=num_layers, batch_first=True,
                               bidirectional=True)
-        self.fc = nn.Linear(hidden_size * 2, 1)  # *2, two directions!
+        self.fc = nn.Linear(self.latent_dim * 2, 1)  # *2, two directions!
 
     def forward(self, x):
         if self.input_size == 1:
@@ -55,15 +54,16 @@ class BiLSTM_Model(nn.Module):
 
 
 class GRU_Model(nn.Module):
-    def __init__(self, hidden_size=64, num_layers=1, input_size=INPUT_SIZE, return_emb=False):
+    def __init__(self, hidden_size=64, num_layers=1, input_size=21, return_emb=False):
         super(GRU_Model, self).__init__()
 
         self.return_emb = return_emb
         self.input_size = input_size
+        self.latent_dim = hidden_size
 
-        self.gru = nn.GRU(input_size=self.input_size, hidden_size=hidden_size,
+        self.gru = nn.GRU(input_size=self.input_size, hidden_size=self.latent_dim,
                           num_layers=num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_size, 1)
+        self.fc = nn.Linear(self.latent_dim, 1)
 
     def forward(self, x):
         if self.input_size == 1:
@@ -83,12 +83,12 @@ class MLP_Model(nn.Module):
         super(MLP_Model, self).__init__()
         self.return_emb = return_emb
 
-        self.hidden_size = hidden_size
+        self.latent_dim = hidden_size
         self.input_size = input_size
 
-        self.fc1 = nn.Linear(self.input_size, hidden_size)
+        self.fc1 = nn.Linear(self.input_size, self.latent_dim)
         self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(hidden_size, 1)
+        self.fc2 = nn.Linear(self.latent_dim, 1)
 
     def forward(self, x):
         if self.input_size == 1:
@@ -103,15 +103,16 @@ class MLP_Model(nn.Module):
 
 
 class MLP_Model_v2(nn.Module):
-    def __init__(self, input_size=21, return_emb=False):
+    def __init__(self, input_size=10, return_emb=False):
         super(MLP_Model_v2, self).__init__()
         self.return_emb = return_emb
 
         self.input_size = input_size
+        self.latent_dim = 16
 
         self.fc1 = nn.Linear(self.input_size, 32)
-        self.fc2 = nn.Linear(32, 16)
-        self.fc3 = nn.Linear(16, 1)
+        self.fc2 = nn.Linear(32, self.latent_dim)
+        self.fc3 = nn.Linear(self.latent_dim, 1)
         self.relu = nn.ReLU()
 
     def forward(self, x):

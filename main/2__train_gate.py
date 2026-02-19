@@ -12,46 +12,54 @@ from utils.utils import *
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
-
+warnings.simplefilter(action='ignore', category=UserWarning)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
-MODEL_REGISTRY = {
-    "LSTM": LSTM_Model,
-    "BILSTM": BiLSTM_Model,
-    "GRU": GRU_Model,
-    "LCNN": LCNN,
-}
-
+MODEL_REGISTRY = [
+    ("MLP", MLP_Model),
+    ("MLP", MLP_Model_v2),
+    ("GRU", GRU_Model),
+    ("LCNN", LCNN),
+    ("LCNN", LCNN)
+]
 
 def get_model_type_from_ckpt(ckpt_path):
     filename = os.path.basename(ckpt_path).upper()
     name_no_ext = os.path.splitext(filename)[0]
 
     tokens = name_no_ext.split("_")
+    model_names = [name for name, _ in MODEL_REGISTRY]
+
     for token in tokens:
         token_upper = token.upper()
-        if token_upper in MODEL_REGISTRY:
+        if token_upper in model_names:
             return token_upper
 
     raise ValueError(f"No model recognized from checkpoint: {filename}")
 
 
 def train_moe(ckpts, config):
-    config['save_model_folder'] = os.path.join(config['save_model_folder'], 'gate_exp')
+    config['save_model_folder'] = os.path.join(config['save_model_folder'], 'MoE')
     Path(config['save_model_folder']).mkdir(parents=True, exist_ok=True)
 
     # LOAD EXPERT MODELS
     experts = []
     models_list = []
+    model_registry = MODEL_REGISTRY.copy()
+
     for ckpt in ckpts:
         model_type = get_model_type_from_ckpt(ckpt)
-        model_class = MODEL_REGISTRY[model_type]
+        for name, mod in model_registry:
+            if name == model_type:
+                model_class = mod
+                model_registry.remove((name, model_class))  # remove the used pair to keep mapping one-to-one
+                break
         model = model_class(return_emb=True)
         model.load_state_dict(torch.load(ckpt, map_location=device))
         experts.append(model)
-        models_list.append(model_class)
+        models_list.append(model_type)
 
     # DEFINE MOE MODEL
     if 'cat' in config['model_name'].lower():
@@ -125,15 +133,19 @@ if __name__ == '__main__':
     seed_everything(config['seed'])
 
     def setup_moe_model(model_name, freeze_experts=True):
+        config['train_data'] = 'asv19'
+        config['merge'] = True
+
         config['freeze_experts'] = freeze_experts
         config['model_name'] = model_name
         ckpts_path = os.path.join(config['rootpath'], 'checkpoints/experts')
 
         ckpts = [
-            os.path.join(ckpts_path, 'POC_LCNN_0-2000.pth'),
-            os.path.join(ckpts_path, 'POC_LCNN_2000-4000.pth'),
-            os.path.join(ckpts_path, 'POC_LCNN_4000-6000.pth'),
-            os.path.join(ckpts_path, 'POC_LCNN_6000-8000.pth')
+            os.path.join(ckpts_path, 'FLAT_PITCH_MLP.pth'),
+            os.path.join(ckpts_path, 'F0_INCONS_MLP.pth'),
+            os.path.join(ckpts_path, 'OVERSMOOTH_GRU.pth'),
+            os.path.join(ckpts_path, 'MIN_PHASE_LCNN_UNWRAP.pth'),
+            os.path.join(ckpts_path, 'PERF_SIL_LCNN.pth')
         ]
 
         print(f"Model name: {config['model_name']}")
@@ -142,5 +154,5 @@ if __name__ == '__main__':
         train_moe(ckpts, config)
 
 
-    setup_moe_model(model_name='MOE_COMPOUND_LOSS.pth',
+    setup_moe_model(model_name='moe_first_trial_5_experts.pth',
                     freeze_experts=True)

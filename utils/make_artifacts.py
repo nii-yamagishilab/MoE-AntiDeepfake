@@ -299,10 +299,10 @@ def f0_segment_shuffle(f0_traj, seg_len_s, hop_s, p_shuffle):
 def flatten_f0(f0_traj, strength=0.5, dyn_strength=0.0):
 
     f0_mod = f0_traj.copy()
-    voiced = ~np.isnan(f0_mod)
+    voiced = f0_mod > 0
 
     # global range compression
-    f0_ref = np.nanmedian(f0_mod)
+    f0_ref = np.median(f0_mod)
 
     f0_mod[voiced] = (
         (1.0 - strength) * f0_mod[voiced]

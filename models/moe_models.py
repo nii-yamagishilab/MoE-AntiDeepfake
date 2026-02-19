@@ -141,8 +141,7 @@ class MOE_WIFS(nn.Module):
         stacked_logits = torch.stack(outputs, dim=1)
         expert_probs = torch.softmax(stacked_logits, dim=-1)
 
-        combined_output = torch.sum(gating_weights * expert_probs, dim=1)
-        weights_x_probs = gating_weights * expert_probs
+        combined_output = torch.sum(gating_weights * expert_probs.unsqueeze(-1), dim=1)
 
         if self.return_weights:
             return combined_output, gating_weights

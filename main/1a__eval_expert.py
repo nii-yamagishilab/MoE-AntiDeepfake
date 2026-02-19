@@ -63,8 +63,7 @@ if __name__ == '__main__':
     if config['mod'] == 'f0_incons':
         config['target_df'] = 'A04'
     elif config['mod'] == 'flat_pitch':
-        # config['target_df'] = 'A02'
-        config['target_df'] = 'A10'
+        config['target_df'] = 'A02'
     elif config['mod'] == 'perf_sil':
         config['target_df'] = 'A09'
     else:
@@ -73,7 +72,7 @@ if __name__ == '__main__':
     print("\nEVALUATION MODE\n")
     print(f"Manipulation type: {config['mod']}")
     print(f"Is sanity check? {config['sanity']}")
-    print(f"Target deepfake: CUSTOM \n")
+    print(f"Target deepfake: {config['target_df']} \n")
 
 
     model_names = [

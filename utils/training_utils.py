@@ -10,8 +10,12 @@ def train_epoch_expert(train_loader, model, optim, criterion, device):
     model.train()
 
     for batch_x, batch_y in tqdm(train_loader, total=len(train_loader)):
-        if isinstance(batch_x, list):
-            batch_x = batch_x[0]
+        if isinstance(batch_x, dict):
+            values = list(batch_x.values())
+            if len(values) == 1:
+                batch_x = values[0]
+            else:
+                batch_x = values
 
         batch_size = batch_x.size(0)
         num_total += batch_size
@@ -38,8 +42,12 @@ def valid_epoch_expert(data_loader, model, criterion, device):
     model.eval()
 
     for batch_x, batch_y in tqdm(data_loader, total=len(data_loader)):
-        if isinstance(batch_x, list):
-            batch_x = batch_x[0]
+        if isinstance(batch_x, dict):
+            values = list(batch_x.values())
+            if len(values) == 1:
+                batch_x = values[0]
+            else:
+                batch_x = values
 
         batch_size = batch_x.size(0)
         num_total += batch_size
@@ -53,7 +61,6 @@ def valid_epoch_expert(data_loader, model, criterion, device):
     running_loss /= num_total
     return running_loss
 
-
 def eval_expert(model, data_loader, device):
     model.eval()
     fname_list = []
@@ -61,9 +68,14 @@ def eval_expert(model, data_loader, device):
     label_list = []
 
     for batch_x, batch_y, utt_id in tqdm(data_loader, total=len(data_loader)):
-
         if isinstance(batch_x, list):
-            batch_x = batch_x[0]
+                batch_x = batch_x[0]
+        # if isinstance(batch_x, dict):
+        #     values = list(batch_x.values())
+        #     if len(values) == 1:
+        #         batch_x = values[0]
+        #     else:
+        #         batch_x = values
 
         batch_x = batch_x.to(device)
 
@@ -91,11 +103,18 @@ def train_epoch_compound(train_loader, model, optim, losses, config, device):
     model.train()
 
     for batch_x, batch_y, batch_k in tqdm(train_loader, total=len(train_loader)):
-        batch_x = batch_x.to(device)
+        if isinstance(batch_x, dict):
+            values = list(batch_x.values())
+            if len(values) == 1:
+                batch_x = values[0]
+            else:
+                batch_x = values
+
+        batch_x = [x.to(device) for x in batch_x]
         batch_y = batch_y.view(-1).float().to(device)
         batch_k = batch_k.view(-1).long().to(device)
 
-        batch_size = batch_x.size(0)
+        batch_size = batch_y.size(0)
         fake_mask = (batch_y == 1)
         real_mask = (batch_y == 0)
 
@@ -104,12 +123,12 @@ def train_epoch_compound(train_loader, model, optim, losses, config, device):
         num_tot_real += real_mask.sum().item()
 
         batch_probs, gate_probs = model(batch_x)
-        batch_probs = batch_probs[:, 1]
+        # batch_probs = batch_probs[:, 1]
         batch_probs = batch_probs.clamp(1e-8, 1 - 1e-8)
         gate_probs = gate_probs.clamp(1e-8, 1 - 1e-8)
 
         # BCELoss (Real vs Fake)
-        batch_bce_loss = losses['bce'](batch_probs, batch_y)
+        batch_bce_loss = losses['bce'](batch_probs, batch_y.unsqueeze(-1))
 
         # NLLLoss (Attribution Loss, fakes-only)
         log_gate_probs = torch.log(gate_probs + 1e-8)
@@ -166,11 +185,18 @@ def valid_epoch_compound(data_loader, model, losses, config, device):
     model.eval()
 
     for batch_x, batch_y, batch_k in tqdm(data_loader, total=len(data_loader)):
-        batch_x = batch_x.to(device)
+        if isinstance(batch_x, dict):
+            values = list(batch_x.values())
+            if len(values) == 1:
+                batch_x = values[0]
+            else:
+                batch_x = values
+
+        batch_x = [x.to(device) for x in batch_x]
         batch_y = batch_y.view(-1).float().to(device)
         batch_k = batch_k.view(-1).long().to(device)
 
-        batch_size = batch_x.size(0)
+        batch_size = batch_y.size(0)
         fake_mask = (batch_y == 1)
         real_mask = (batch_y == 0)
 
@@ -179,12 +205,12 @@ def valid_epoch_compound(data_loader, model, losses, config, device):
         num_tot_real += real_mask.sum().item()
 
         batch_probs, gate_probs = model(batch_x)
-        batch_probs = batch_probs[:, 1]
+        # batch_probs = batch_probs[:, 1]
         batch_probs = batch_probs.clamp(1e-8, 1 - 1e-8)
         gate_probs = gate_probs.clamp(1e-8, 1 - 1e-8)
 
         # BCELoss (Real vs Fake)
-        batch_bce_loss = losses['bce'](batch_probs, batch_y)
+        batch_bce_loss = losses['bce'](batch_probs, batch_y.unsqueeze(-1))
 
         # NLLLoss (Attribution Loss, fakes-only)
         log_gate_probs = torch.log(gate_probs + 1e-8)
