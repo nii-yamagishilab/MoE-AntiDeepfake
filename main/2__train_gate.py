@@ -4,41 +4,17 @@ sys.path.insert(1, os.getcwd())
 
 from pathlib import Path
 from utils.data_utils import load_training_data
-from models.small_models import *
-from models.lcnn_model import LCNN
 from models.moe_models import MOE_ICASSP, MOE_WIFS, FlatteningLoss
 from utils.training_utils import train_epoch_compound, valid_epoch_compound
 from utils.utils import *
+from utils.model_utils import *
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter(action='ignore', category=UserWarning)
 
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-
-MODEL_REGISTRY = [
-    ("MLP", MLP_Model),
-    ("MLP", MLP_Model_v2),
-    ("GRU", GRU_Model),
-    ("LCNN", LCNN),
-    ("LCNN", LCNN)
-]
-
-def get_model_type_from_ckpt(ckpt_path):
-    filename = os.path.basename(ckpt_path).upper()
-    name_no_ext = os.path.splitext(filename)[0]
-
-    tokens = name_no_ext.split("_")
-    model_names = [name for name, _ in MODEL_REGISTRY]
-
-    for token in tokens:
-        token_upper = token.upper()
-        if token_upper in model_names:
-            return token_upper
-
-    raise ValueError(f"No model recognized from checkpoint: {filename}")
-
 
 def train_moe(ckpts, config):
     config['save_model_folder'] = os.path.join(config['save_model_folder'], 'MoE')

@@ -2,7 +2,6 @@ import sys
 import os
 sys.path.insert(1, os.getcwd())
 
-from torch.utils.data import DataLoader
 from pathlib import Path
 from utils.data_utils import load_evaluation_data
 from models.small_models import BiLSTM_Model, LSTM_Model, GRU_Model, MLP_Model
@@ -29,7 +28,11 @@ def main(checkpoint_paths, model_classes):
         print(f'Model loaded: {os.path.basename(model_path)}\n')
 
     # LOAD EVAL DATA
-    eval_loader = load_evaluation_data(config)
+    model_names = []
+    for i in range(len(checkpoint_paths)):
+        name = Path(checkpoint_paths[i]).stem.rsplit('_', 1)[-1]
+        model_names.append(name)
+    eval_loader = load_evaluation_data(model_names, config)
 
     # EVALUATE EXPERT(S)
     for expert, model_path in zip(experts, checkpoint_paths):
@@ -53,33 +56,23 @@ if __name__ == '__main__':
     # --------------------- PLEASE DEFINE ----------------------#
 
     config['mod'] = 'flat_pitch'
-    config['sanity'] = False
+    config['sanity_check'] = False
+    config['target_check'] = True
 
     config['model'] = 'mlp'
     model_classes = [MLP_Model]
 
     # ------------------------- Thanks -------------------------#
 
-    if config['mod'] == 'f0_incons':
-        config['target_df'] = 'A04'
-    elif config['mod'] == 'flat_pitch':
-        config['target_df'] = 'A02'
-    elif config['mod'] == 'perf_sil':
-        config['target_df'] = 'A09'
-    else:
-        config['target_df'] = 'A03'
-
     print("\nEVALUATION MODE\n")
     print(f"Manipulation type: {config['mod']}")
-    print(f"Is sanity check? {config['sanity']}")
-    print(f"Target deepfake: {config['target_df']} \n")
+    print(f"Is sanity check? {config['sanity_check']}")
+    print(f"Is target check? {config['target_check']} \n")
 
 
     model_names = [
         f'{config['mod'].upper()}_{config['model'].upper()}.pth',
     ]
-
-    # config['save_results_folder'] = os.path.join(config['save_results_folder'], 'experts')
     checkpoint_paths = [os.path.join(config['save_model_folder'], 'experts', name) for name in model_names]
 
     main(checkpoint_paths, model_classes)

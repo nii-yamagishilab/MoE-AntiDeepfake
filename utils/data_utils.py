@@ -1,119 +1,12 @@
-import os
 import sys
-from glob import glob
-import pandas as pd
 from pathlib import Path
 from sklearn.model_selection import train_test_split
-from utils.make_artifacts import *
-from utils.dataloader import LoadTrainData, LoadEvalData_SanityCheck, LoadEvalData_Deepfake
+from utils.dataloader import *
 from torch.utils.data import DataLoader
+from utils.model_utils import *
 from glob import glob
 
 #--------------------------- Current Dataframes ---------------------------#
-
-def load_training_data(models_list, config):
-
-    if not config['merge']:
-        df_train, df_dev = make_df_bonafide(config)
-    else:
-        df_all = make_df_bonafide(config)
-        df_train, df_dev = train_test_split(
-            df_all,
-            test_size=0.2,
-            random_state=42,
-            shuffle=True
-        )
-
-    df_train = pd.DataFrame(df_train.values.repeat(2, axis=0), columns=df_train.columns)
-    df_dev = pd.DataFrame(df_dev.values.repeat(2, axis=0), columns=df_dev.columns)
-
-    # Define training dataloader
-    file_train = list(df_train['path'])
-    train_set = LoadTrainData(list_IDs=file_train, models_list=models_list, config=config)
-    train_loader = DataLoader(train_set, batch_size=config['batch_size'], shuffle=True, drop_last=True)
-    del train_set
-
-    # Define validation dataloader
-    file_dev = list(df_dev['path'])
-    dev_set = LoadTrainData(list_IDs=file_dev, models_list=models_list, config=config)
-    dev_loader = DataLoader(dev_set, batch_size=config['batch_size'], shuffle=False)
-    del dev_set
-
-    print(f'Total no. of training samples: {len(train_loader.dataset)}')
-    print(f'Total no. of dev samples: {len(dev_loader.dataset)} \n')
-
-    return train_loader, dev_loader
-
-def load_evaluation_data(config):
-
-    ds = config['asv19']
-    df_eval = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
-
-    if not config['sanity']:
-        print("Test on actual deepfake data.")
-        df_eval = (
-            df_eval[df_eval[3].isin(['-', config['target_df']])]
-            .groupby(3, group_keys=False)
-            .sample(n=2500, random_state=config['seed'])
-            .assign(
-                path=lambda df: df[1].apply(
-                    lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac")
-                ),
-                label=lambda df: (df[3] == config['target_df']).astype(int)
-            )
-            [['path', 'label']]
-        )
-
-        # if config['mod'] == "flat_pitch":
-        #     real_files = glob("/Database/keithito_LJSpeech-1.1/wavs/*.wav")
-        #     real_sample = random.sample(real_files, 3000)
-        #     df_real = pd.DataFrame({
-        #         "path": real_sample,
-        #         "label": 0
-        #     })
-        #
-        #     root = "/Database/TIMIT-TTS/CLEAN/single_speaker"
-        #     exclude = {"fastspeech2", "fastpitch", "talknet"}
-        #
-        #     models = [
-        #         d for d in os.listdir(root)
-        #         if os.path.isdir(os.path.join(root, d)) and d not in exclude]
-        #     fake_files = []
-        #     for model in models:
-        #         fake_files.extend(
-        #             glob(os.path.join(root, model, "**", "*.wav"), recursive=True)
-        #         )
-        #     df_fake = pd.DataFrame({
-        #         "path": fake_files,
-        #         "label": 1
-        #     })
-        #
-        #     df_eval = pd.concat([df_real, df_fake], ignore_index=True)
-
-
-        file_eval = list(df_eval['path'])
-        labels_eval = list(df_eval['label'])
-        eval_set = LoadEvalData_Deepfake(list_IDs=file_eval, labels=labels_eval, config=config)
-
-    else:
-        print("Test on manipulated data for sanity checking.")
-        df_eval = (
-            df_eval[df_eval[4] == 'bonafide']
-            .sample(n=2500, random_state=config['seed'])
-            .assign(path=lambda df: df[1].apply(
-                lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac")
-            ))
-            [['path']]
-        )
-        df_eval = pd.DataFrame(df_eval.values.repeat(2, axis=0), columns=df_eval.columns)
-        file_eval = list(df_eval['path'])
-        eval_set = LoadEvalData_SanityCheck(list_IDs=file_eval, config=config)
-
-    eval_loader = DataLoader(eval_set, batch_size=config['batch_size'], shuffle=False)
-    del eval_set
-    print(f'Total no. of eval samples: {len(eval_loader.dataset)} \n')
-
-    return eval_loader
 
 def make_df_bonafide(config):
     if config['train_data'] not in config:
@@ -148,6 +41,137 @@ def make_df_bonafide(config):
         return df
     else:
         return df_t, df_d
+
+def load_training_data(models_list, config):
+    if not config['merge']:
+        df_train, df_dev = make_df_bonafide(config)
+    else:
+        df_all = make_df_bonafide(config)
+        df_train, df_dev = train_test_split(
+            df_all,
+            test_size=0.2,
+            random_state=42,
+            shuffle=True
+        )
+
+    df_train = pd.DataFrame(df_train.values.repeat(2, axis=0), columns=df_train.columns)
+    df_dev = pd.DataFrame(df_dev.values.repeat(2, axis=0), columns=df_dev.columns)
+
+    # Define training dataloader
+    file_train = list(df_train['path'])
+    train_set = LoadTrainData(list_IDs=file_train, models_list=models_list, config=config)
+    train_loader = DataLoader(train_set, batch_size=config['batch_size'], shuffle=True, drop_last=True)
+    del train_set
+
+    # Define validation dataloader
+    file_dev = list(df_dev['path'])
+    dev_set = LoadTrainData(list_IDs=file_dev, models_list=models_list, config=config)
+    dev_loader = DataLoader(dev_set, batch_size=config['batch_size'], shuffle=False)
+    del dev_set
+
+    print(f'Total no. of training samples: {len(train_loader.dataset)}')
+    print(f'Total no. of dev samples: {len(dev_loader.dataset)} \n')
+
+    return train_loader, dev_loader
+
+def load_evaluation_data(models_list, config):
+
+    ds = config['asv19']
+
+    if config['sanity_check']:
+        print("Test on manipulated data for sanity checking.")
+        df_eval = pd.read_csv(os.path.join(ds['base_path'], ds['eval_file']), sep=' ', header=None)
+
+        df_eval = (
+            df_eval[df_eval[4] == 'bonafide']
+            .sample(n=1000, random_state=42)  # subsample for brevity
+            .assign(path=lambda df: df[1].apply(
+                lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac")
+            ))
+            [['path']]
+        )
+        df_eval = pd.DataFrame(df_eval.values.repeat(2, axis=0), columns=df_eval.columns)
+        file_eval = list(df_eval['path'])
+        eval_set = LoadEvalData_MoE_SanityCheck(list_IDs=file_eval, models_list=models_list, config=config)
+
+    elif config['target_check']:
+        print("Test on target deepfake data.")
+
+        df_train = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
+        df_dev = pd.read_csv(os.path.join(ds['base_path'], ds['dev_file']), sep=' ', header=None)
+        df_test = pd.read_csv(os.path.join(ds['base_path'], ds['eval_file']), sep=' ', header=None)
+
+        df_train['label'] = df_train[4].map({'bonafide': 0, 'spoof': 1})
+        df_train['path'] = df_train[1].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
+        df_dev['label'] = df_dev[4].map({'bonafide': 0, 'spoof': 1})
+        df_dev['path'] = df_dev[1].apply(lambda x: os.path.join(ds['base_path'], ds['dev_dir'], f"{x}.flac"))
+        df_test['label'] = df_test[4].map({'bonafide': 0, 'spoof': 1})
+        df_test['path'] = df_test[1].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac"))
+
+        df_all = pd.concat([df_train, df_dev, df_test], ignore_index=True)
+
+        unique_mods = list({ mod for model, mod in MANIPULATIONS_REGISTRY if model in models_list})
+        target_df = list({code for mod, code in TARGET_DF_REGISTRY if mod in unique_mods})
+
+        dfs = []
+        nb_class_samples = 1000
+
+        if 'CUSTOM' in target_df:
+            real_files = glob("/Database/keithito_LJSpeech-1.1/wavs/*.wav")
+            real_sample = random.sample(real_files, nb_class_samples)
+            df_real_1 = pd.DataFrame({"path": real_sample, "label": 0})
+
+            root = "/Database/TIMIT-TTS/CLEAN/single_speaker"
+            exclude = {"fastspeech2", "fastpitch", "talknet"}
+
+            models = [
+                d for d in os.listdir(root)
+                if os.path.isdir(os.path.join(root, d)) and d not in exclude]
+            fake_files = []
+            for model in models:
+                fake_files.extend(
+                    glob(os.path.join(root, model, "**", "*.wav"), recursive=True)
+                )
+            df_fake_1 = pd.DataFrame({"path": fake_files, "label": 1})
+            df_fake_1 = df_fake_1.sample(n=nb_class_samples, random_state=42)
+
+            dfs.extend([df_real_1, df_fake_1])
+            target_df.remove("CUSTOM")
+
+        df_real_2 = (
+            df_all[df_all[3] == '-']
+            .sample(n=nb_class_samples * len(target_df), random_state=42))
+        dfs.append(df_real_2)
+
+        df_fake_2 = (
+            df_all[df_all[3].isin(target_df)]
+            .groupby(3, group_keys=False)
+            .sample(n=nb_class_samples, random_state=42))
+        dfs.append(df_fake_2)
+
+        df_eval = pd.concat(dfs, ignore_index=True)
+
+        file_eval = list(df_eval['path'])
+        labels_eval = list(df_eval['label'])
+        eval_set = LoadEvaluationData(list_IDs=file_eval, labels=labels_eval, models_list=models_list, config=config)
+
+    else:
+        print("Test on full set of deepfake data.")
+        df_eval = pd.read_csv(os.path.join(ds['base_path'], ds['eval_file']), sep=' ', header=None)
+
+        df_eval['label'] = df_eval[4].map({'bonafide': 0, 'spoof': 1})
+        df_eval['path'] = df_eval[1].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac"))
+        df_eval = df_eval[['path', 'label']]
+
+        file_eval = list(df_eval['path'])
+        labels_eval = list(df_eval['label'])
+        eval_set = LoadEvaluationData(list_IDs=file_eval, labels=labels_eval, models_list=models_list, config=config)
+
+    eval_loader = DataLoader(eval_set, batch_size=config['batch_size'], shuffle=False)
+    del eval_set
+    print(f'Total no. of eval samples: {len(eval_loader.dataset)} \n')
+
+    return eval_loader
 
 
 #--------------------------- Baseline Dataframes ---------------------------#
@@ -187,7 +211,7 @@ def load_training_data_holdout(dataset_name, config):
         df_all = df_all[['path', 'label', 'speaker']]
 
         unique_speakers = df_all['speaker'].unique()
-        train_speakers, dev_speakers = train_test_split(unique_speakers, test_size=0.25, random_state=config['seed'],
+        train_speakers, dev_speakers = train_test_split(unique_speakers, test_size=0.25, random_state=42,
             stratify=df_all.groupby('speaker')['label'].first())
 
         df_train = df_all[df_all['speaker'].isin(train_speakers)]
@@ -209,13 +233,13 @@ def load_training_data_holdout(dataset_name, config):
             df_meta,
             test_size=0.3,
             stratify=df_meta['label'],
-            random_state=config['seed'])
+            random_state=42)
 
         df_dev, df_test = train_test_split(
             df_temp,
             test_size=0.5,
             stratify=df_temp['label'],
-            random_state=config['seed'])
+            random_state=42)
 
         Path("csv_files").mkdir(exist_ok=True)
         output_files = {
@@ -249,13 +273,13 @@ def load_training_data_holdout(dataset_name, config):
             df_all,
             test_size=0.3,
             stratify=df_all['label'],
-            random_state=config['seed'])
+            random_state=42)
 
         df_dev, df_test = train_test_split(
             df_temp,
             test_size=0.5,
             stratify=df_temp['label'],
-            random_state=config['seed'])
+            random_state=42)
 
         Path("csv_files").mkdir(exist_ok=True)
         output_files = {
@@ -329,13 +353,13 @@ def load_evaluation_data_baseline(datasets, config):
             df_meta,
             test_size=0.3,
             stratify=df_meta['label'],
-            random_state=config['seed']
+            random_state=42
         )
         _, df_eval = train_test_split(
             df_temp,
             test_size=0.5,
             stratify=df_temp['label'],
-            random_state=config['seed']
+            random_state=42
         )
 
         data['itw'] = df_eval
@@ -360,13 +384,13 @@ def load_evaluation_data_baseline(datasets, config):
             df_all,
             test_size=0.3,
             stratify=df_all['label'],
-            random_state=config['seed'])
+            random_state=42)
 
         _, df_eval = train_test_split(
             df_temp,
             test_size=0.5,
             stratify=df_temp['label'],
-            random_state=config['seed'])
+            random_state=42)
 
         data['mlaad'] = df_eval
 
@@ -420,7 +444,7 @@ def load_evaluation_data_baseline(datasets, config):
 
         df_asv5 = df_asv5[df_asv5[3] == '-']  # no codec
         df_asv5 = df_asv5.groupby(7, group_keys=False).apply(
-            lambda x: x.sample(n=7760, random_state=config['seed'])
+            lambda x: x.sample(n=7760, random_state=42)
         )
 
         df_asv5['label'] = df_asv5[8].map({'bonafide': 0, 'spoof': 1})

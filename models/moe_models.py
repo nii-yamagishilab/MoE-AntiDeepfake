@@ -78,7 +78,7 @@ class MOE_ICASSP(nn.Module):
         expert_probs = torch.softmax(stacked_logits, dim=-1)
 
         combined_output = torch.sum(gating_weights * expert_probs, dim=1)
-        weights_x_probs = gating_weights * expert_probs
+        # weights_x_probs = gating_weights * expert_probs
 
         if self.return_weights:
             return combined_output, gating_weights
@@ -142,6 +142,7 @@ class MOE_WIFS(nn.Module):
         expert_probs = torch.softmax(stacked_logits, dim=-1)
 
         combined_output = torch.sum(gating_weights * expert_probs.unsqueeze(-1), dim=1)
+        # weights_x_probs = gating_weights * expert_probs.unsqueeze(-1)
 
         if self.return_weights:
             return combined_output, gating_weights
