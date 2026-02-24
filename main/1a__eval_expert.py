@@ -4,7 +4,7 @@ sys.path.insert(1, os.getcwd())
 
 from pathlib import Path
 from utils.data_utils import load_evaluation_data
-from models.small_models import BiLSTM_Model, LSTM_Model, GRU_Model, MLP_Model
+from models.small_models import BiLSTM_Model, LSTM_Model, GRU_Model, MLP_Model, MLP_Model_v2
 from models.lcnn_model import LCNN
 from utils.training_utils import eval_expert
 from utils.utils import *
@@ -32,16 +32,21 @@ def main(checkpoint_paths, model_classes):
     for i in range(len(checkpoint_paths)):
         name = Path(checkpoint_paths[i]).stem.rsplit('_', 1)[-1]
         model_names.append(name)
-    eval_loader = load_evaluation_data(model_names, config)
 
-    # EVALUATE EXPERT(S)
-    for expert, model_path in zip(experts, checkpoint_paths):
+    targets = ['A01', 'A02', 'A03', 'A04', 'A07',  'A08', 'A09', 'A10', 'A11', 'A12']
+    for t in range(len(targets)):
+        config['selected_target'] = [targets[t]]
 
-        with torch.no_grad():
-            scores, labels = eval_expert(expert, eval_loader, device)
+        eval_loader = load_evaluation_data(model_names, config)
 
-        rocauc, eer = compute_metrics(labels, scores)
-        print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n")
+        # EVALUATE EXPERT(S)
+        for expert, model_path in zip(experts, checkpoint_paths):
+
+            with torch.no_grad():
+                scores, labels = eval_expert(expert, eval_loader, device)
+
+            rocauc, eer = compute_metrics(labels, scores)
+            print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n")
 
 
 if __name__ == '__main__':
@@ -59,7 +64,7 @@ if __name__ == '__main__':
     config['sanity_check'] = False
     config['target_check'] = True
 
-    config['model'] = 'mlp'
+    config['model'] = 'MLP'
     model_classes = [MLP_Model]
 
     # ------------------------- Thanks -------------------------#

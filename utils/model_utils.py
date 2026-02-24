@@ -2,9 +2,15 @@ import os
 from models.small_models import *
 from models.lcnn_model import LCNN
 
+
+                            # ----------------------------------------#
+                            # WARNING: THE ORDERING LOGIC MATTERS !!! #
+                            # ----------------------------------------#
+
+
 MODEL_REGISTRY = [
-    ("MLP", MLP_Model),
-    ("MLP", MLP_Model_v2),
+    ("MLP", MLP_Model),      # flat pitch
+    ("MLP", MLP_Model_v2),   # f0 inconsistency
     ("GRU", GRU_Model),
     ("LCNN", LCNN),
     ("LCNN", LCNN)
@@ -19,11 +25,11 @@ MANIPULATIONS_REGISTRY = [
 ]
 
 TARGET_DF_REGISTRY = [
-    # ("f0_incons", "A04"),
-    # ("oversmooth", "A03"),
-    # ("min_phase", "A03"),
-    ("flat_pitch", "CUSTOM")
-    # perf_sil,  NO
+    ("flat_pitch", "A01"),
+    ("oversmooth", "A03"),
+    ("min_phase", "A03"),
+    ("f0_incons", "A04"),
+    ("perf_sil",  "A09")
 ]
 
 def get_model_type_from_ckpt(ckpt_path):

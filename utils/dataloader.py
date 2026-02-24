@@ -392,16 +392,16 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
 
         # EXTRACT FEATURES
 
-        x = load_audio_track(path, trim=True, normalize=True)
+        x = load_audio_track(path, trim=False, normalize=True)
         x = torch.Tensor(x)
         feat_dict = {}
         invalid_mods = set()
         for mod in mod_list:
             if mod in ['flat_pitch', 'f0_incons']:
-                filename = os.path.splitext(os.path.basename(path))[0]
-                file = f'/home/smg/v-viola/moe_antideepfake/temp_feat/f0_asv19_no_pad/{filename}.npy'
+                file = f'/home/smg/v-viola/moe_antideepfake/temp_feat/f0_asv19_no_pad/{track_name}.npy'
 
                 if not os.path.exists(file):
+                    x = load_audio_track(path, trim=True, normalize=True)  # trim=True !
                     feat = extract_feature(x, mod, self.stft_params)
                     np.save(file, feat)
                 else:
@@ -414,7 +414,7 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
                     invalid_mods.add(mod)
 
             else:
-                x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=False)
+                x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=True)
                 feat = extract_feature(x.numpy(), mod, self.stft_params)
 
             feat_dict[mod] = feat
@@ -511,16 +511,16 @@ class LoadEvaluationData(Dataset):
         feat_dict = {}
         invalid_mods = set()
 
-        x = load_audio_track(path, trim=True, normalize=True)
+        x = load_audio_track(path, trim=False, normalize=True)
         x = torch.Tensor(x)
 
         for mod in mod_list:
 
             if mod in ['flat_pitch', 'f0_incons']:
-                filename = os.path.splitext(os.path.basename(path))[0]
-                file = f'/home/smg/v-viola/moe_antideepfake/temp_feat/f0_asv19_no_pad/{filename}.npy'
+                file = f'/home/smg/v-viola/moe_antideepfake/temp_feat/f0_asv19_no_pad/{track_name}.npy'
 
                 if not os.path.exists(file):
+                    x = load_audio_track(path, trim=True, normalize=True)  # trim=True !
                     feat = extract_feature(x, mod, self.stft_params)
                     np.save(file, feat)
                 else:
@@ -533,7 +533,7 @@ class LoadEvaluationData(Dataset):
                     invalid_mods.add(mod)
 
             else:
-                x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=False)
+                x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=True)
                 feat = extract_feature(x.numpy(), mod, self.stft_params)
 
             feat_dict[mod] = feat
@@ -574,127 +574,6 @@ class LoadEvaluationData(Dataset):
             feat_dict[mod] = feat
 
         return feat_dict, label, track_name
-
-class LoadEvalData_Expert_SanityCheck(Dataset):
-    def __init__(self, list_IDs, config):
-        self.list_IDs = list_IDs
-        self.fs = config['fs']
-        self.win_len = config['win_len']
-        self.stft_params = STFTWindowParams()
-
-        self.mod = config['mod']
-        self.f0_stats = config['f0_train_stats']
-
-        if self.mod == 'flat_pitch':
-            self.mean = torch.tensor(self.f0_stats['mean_flat'])
-            self.std = torch.tensor(self.f0_stats['std_flat'])
-        else:
-            self.mean = torch.tensor(self.f0_stats['mean_incons'])
-            self.std = torch.tensor(self.f0_stats['std_incons'])
-
-    def __len__(self):
-        return len(self.list_IDs)
-
-    def __getitem__(self, idx):
-        path = self.list_IDs[idx]
-        track = os.path.splitext(os.path.basename(path))[0]
-
-        x = load_audio_track(path, trim=True, normalize=True)
-        x = torch.Tensor(x)
-        # x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=True)
-
-        label = 0
-
-        manip_type = self.mod
-        feat = extract_feature(x.numpy(), manip_type, self.stft_params)
-
-        if idx % 2 == 0:
-
-            if manip_type not in ['min_phase', 'perf_sil']:
-                feat_mod = apply_manipulation(feat, mod=manip_type, stft_params=self.stft_params)
-            else:
-                feat_mod = apply_manipulation(x.numpy(), mod=manip_type, stft_params=self.stft_params)
-
-            feat = feat_mod
-            label = 1
-
-        if manip_type in ['flat_pitch', 'f0_incons']:
-
-            if np.all(feat == 0.0):
-                label = 1 if np.random.rand() < 0.5 else 0
-                feat = np.zeros(10)
-                feat = torch.tensor(feat, dtype=torch.float32)
-                return feat, label, track
-
-            feat = extract_proxy_scalars_F0(feat)
-
-            if np.all(feat == 0.0):
-                label = 1 if np.random.rand() < 0.5 else 0
-                feat = torch.tensor(np.zeros(10), dtype=torch.float32)
-            else:
-                feat = torch.tensor(feat, dtype=torch.float32)
-                # STANDARDIZATION
-                if self.mean is not None:
-                    feat = (feat - self.mean) / (self.std + 1e-8)
-            return feat, label, track
-
-        return torch.tensor(feat, dtype=torch.float32), label, track
-
-class LoadEvalData_Expert_Target(Dataset):
-    def __init__(self, list_IDs, labels, config):
-        self.list_IDs = list_IDs
-        self.labels = labels
-        self.stft_params = STFTWindowParams()
-        self.win_len = config['win_len']
-        self.fs = config['fs']
-        self.win_len_samples = int(self.win_len * self.fs)
-
-        self.mod = config['mod']
-        self.f0_stats = config['f0_train_stats']
-
-        if self.mod == 'flat_pitch':
-            self.mean = torch.tensor(self.f0_stats['mean_flat'])
-            self.std = torch.tensor(self.f0_stats['std_flat'])
-        else:
-            self.mean = torch.tensor(self.f0_stats['mean_incons'])
-            self.std = torch.tensor(self.f0_stats['std_incons'])
-
-    def __len__(self):
-        return len(self.list_IDs)
-
-    def __getitem__(self, index):
-        track = self.list_IDs[index]
-        label = self.labels[index]
-
-        x = load_audio_track(track, trim=True, normalize=True)
-        x = torch.Tensor(x)
-        # x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=True)
-
-        manip_type = self.mod
-        feat = extract_feature(x.numpy(), manip_type, self.stft_params)
-
-        if manip_type in ['flat_pitch', 'f0_incons']:
-
-            if np.all(feat == 0.0):
-                label = 1 if np.random.rand() < 0.5 else 0
-                feat = np.zeros(10)
-                feat = torch.tensor(feat, dtype=torch.float32)
-                return feat, label, track
-
-            feat = extract_proxy_scalars_F0(feat)
-
-            if np.all(feat == 0.0):
-                label = 1 if np.random.rand() < 0.5 else 0
-                feat = torch.tensor(np.zeros(10), dtype=torch.float32)
-            else:
-                feat = torch.tensor(feat, dtype=torch.float32)
-                # STANDARDIZATION
-                if self.mean is not None:
-                    feat = (feat - self.mean) / (self.std + 1e-8)
-            return feat, label, track
-
-        else:
-            return torch.tensor(feat, dtype=torch.float32), label, track
 
 #------------------------------ PoC STUFF ----------------------------#
 

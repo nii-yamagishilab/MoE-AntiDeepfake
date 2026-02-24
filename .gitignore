@@ -9,9 +9,10 @@ baseline/csv_files/
 examples/
 temp_feat/
 
-notebooks/0b_analyze_results.ipynb
-notebooks/0a_analyze_results_v2.ipynb
-notebooks/0c_pitch_mod_analyze.ipynb
+notebooks/0_pitch_mod_analyze.ipynb
+notebooks/0a_analyze_results.ipynb
+notebooks/1a_old_modular_notebook.ipynb
+notebooks/1b_xin_modular_notebook.ipynb
 
 # Ignore specific files
 baseline/config/args_paths.yaml

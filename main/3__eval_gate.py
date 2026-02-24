@@ -19,7 +19,9 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 def test_moe(checkpoint_moe, ckpts_experts, save_folder, config):
     Path(save_folder).mkdir(parents=True, exist_ok=True)
     result_path = os.path.join(save_folder,
-                               os.path.basename(os.path.splitext(checkpoint_moe)[0]) + "_A04_A03.txt")
+                               os.path.basename(os.path.splitext(checkpoint_moe)[0]) +
+                               "_MIN_PHASE.txt")
+    print(f"Result path: {result_path}")
 
     # LOAD EXPERT MODELS
     experts = []
@@ -52,6 +54,18 @@ def test_moe(checkpoint_moe, ckpts_experts, save_folder, config):
     moe_model.load_state_dict(torch.load(checkpoint_moe, map_location=device))
     print('Model loaded : {}\n'.format(os.path.basename(checkpoint_moe)))
 
+    # targets = ['A01', 'A02', 'A03', 'A04', 'A07',  'A08', 'A09', 'A10', 'A11', 'A12']
+    # for t in range(len(targets)):
+    #     target = targets[t]
+    #     config['selected_target'] = [target]
+
+    # config['selected_target'] = ['A01', 'A02', 'A03', 'A04', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12']
+    #
+    # result_path = os.path.join(save_folder,
+    #                            os.path.basename(os.path.splitext(checkpoint_moe)[0]) +
+    #                            f"_ALL_NEW.txt")
+    # print(f"Result path: {result_path}")
+
     # LOAD EVAL DATA
     eval_loader = load_evaluation_data(models_list, config)
 
@@ -71,7 +85,7 @@ def test_moe(checkpoint_moe, ckpts_experts, save_folder, config):
     print(f"Mean score (real=0): {real_scores.mean():.6f}")
 
     rocauc, eer = compute_metrics(labels, scores)
-    print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n")
+    print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n\n")
 
 
 if __name__ == '__main__':
@@ -89,23 +103,24 @@ if __name__ == '__main__':
 
     # --------------------- PLEASE DEFINE ----------------------#
 
-    config['sanity_check'] = False
+    config['sanity_check'] = True
     if config['sanity_check']:
-        config['selected_mods'] = ['f0_incons', 'flat_pitch', 'oversmooth', 'min_phase', 'perf_sil']
-    config['target_check'] = True
+        # config['selected_mods'] = ['f0_incons', 'flat_pitch', 'oversmooth', 'min_phase', 'perf_sil']
+        config['selected_mods'] = ['min_phase']
+    config['target_check'] = False
 
     ckpt_moe = os.path.join(ckpt_moe_path, 'moe_first_trial_5_experts.pth')
     ckpts_experts = [
         os.path.join(ckpt_exp_path, 'FLAT_PITCH_MLP.pth'),
         os.path.join(ckpt_exp_path, 'F0_INCONS_MLP.pth'),
         os.path.join(ckpt_exp_path, 'OVERSMOOTH_GRU.pth'),
-        os.path.join(ckpt_exp_path, 'MIN_PHASE_LCNN_UNWRAP.pth'),
+        os.path.join(ckpt_exp_path, 'MIN_PHASE_LCNN.pth'),
         os.path.join(ckpt_exp_path, 'PERF_SIL_LCNN.pth')
     ]
 
     # save_folder = os.path.join(save_path, "Full_ASV19")
-    # save_folder = os.path.join(save_path, "SanityCheck")
-    save_folder = os.path.join(save_path, "TargetCheck")
+    save_folder = os.path.join(save_path, "SanityCheck")
+    # save_folder = os.path.join(save_path, "TargetCheck")
 
     # ------------------------- Thanks -------------------------#
 

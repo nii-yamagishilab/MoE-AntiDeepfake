@@ -120,7 +120,7 @@ if __name__ == '__main__':
             os.path.join(ckpts_path, 'FLAT_PITCH_MLP.pth'),
             os.path.join(ckpts_path, 'F0_INCONS_MLP.pth'),
             os.path.join(ckpts_path, 'OVERSMOOTH_GRU.pth'),
-            os.path.join(ckpts_path, 'MIN_PHASE_LCNN_UNWRAP.pth'),
+            os.path.join(ckpts_path, 'MIN_PHASE_LCNN.pth'),
             os.path.join(ckpts_path, 'PERF_SIL_LCNN.pth')
         ]
 

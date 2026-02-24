@@ -110,8 +110,10 @@ def load_evaluation_data(models_list, config):
 
         df_all = pd.concat([df_train, df_dev, df_test], ignore_index=True)
 
-        unique_mods = list({ mod for model, mod in MANIPULATIONS_REGISTRY if model in models_list})
-        target_df = list({code for mod, code in TARGET_DF_REGISTRY if mod in unique_mods})
+        # unique_mods = list({ mod for model, mod in MANIPULATIONS_REGISTRY if model in models_list})
+        # target_df = list({code for mod, code in TARGET_DF_REGISTRY if mod in unique_mods})
+        target_df = config['selected_target']
+        print(f"Target generator: {target_df}\n")
 
         dfs = []
         nb_class_samples = 1000
