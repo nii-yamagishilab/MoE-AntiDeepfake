@@ -39,9 +39,9 @@ def train_moe(ckpts, config):
 
     # DEFINE MOE MODEL
     if 'cat' in config['model_name'].lower():
-        moe_model = MOE_ICASSP(experts=experts, return_weights=True)
+        moe_model = MOE_ICASSP(experts=experts, freezing=config['freeze_experts'], return_weights=True)
     else:
-        moe_model = MOE_WIFS(experts=experts, return_weights=True)
+        moe_model = MOE_WIFS(experts=experts, freezing=config['freeze_experts'], return_weights=True)
 
     for expert in experts:
         expert.to(device)
@@ -55,7 +55,7 @@ def train_moe(ckpts, config):
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config['num_epochs'], eta_min=0.00001)
 
     losses = nn.ModuleDict({
-        "bce": nn.BCELoss(),
+        "bce": nn.BCEWithLogitsLoss(),
         "nll": nn.NLLLoss(),
         "flatten": FlatteningLoss(),
     })
@@ -124,11 +124,11 @@ if __name__ == '__main__':
             os.path.join(ckpts_path, 'PERF_SIL_LCNN.pth')
         ]
 
-        print(f"Model name: {config['model_name']}")
+        print(f"\nModel name: {config['model_name']}")
         print(f"Freeze experts: {freeze_experts}\n")
 
         train_moe(ckpts, config)
 
 
-    setup_moe_model(model_name='moe_first_trial_5_experts.pth',
+    setup_moe_model(model_name='frozen_5_exp_wxL_no_temp.pth',
                     freeze_experts=True)

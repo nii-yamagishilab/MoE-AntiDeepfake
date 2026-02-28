@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=eval_moe
-#SBATCH --out="gate_sanity_check_phase.out.txt"
+#SBATCH --out="txt/E_frozen_5_experts_wxp.out.txt"
 #SBATCH --time=3-00:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1

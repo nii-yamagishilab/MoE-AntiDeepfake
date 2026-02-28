@@ -113,6 +113,9 @@ def train_epoch_compound(train_loader, model, optim, losses, config, device):
     running_tot_loss = 0.0
 
     model.train()
+    if config['freeze_experts']:
+        for expert in model.experts:
+            expert.eval()
 
     for batch_x, batch_y, batch_k in tqdm(train_loader, total=len(train_loader)):
         if isinstance(batch_x, dict):
@@ -161,7 +164,7 @@ def train_epoch_compound(train_loader, model, optim, losses, config, device):
         running_attr_loss += batch_attr_loss.item() * fake_mask.sum().item()
         running_flat_loss += batch_flat_loss.item() * real_mask.sum().item()
 
-        batch_total_loss = (batch_bce_loss +
+        batch_total_loss = (config['wb']*batch_bce_loss +
                             config['wa']*batch_attr_loss +
                             config['wf']*batch_flat_loss)
 
@@ -261,16 +264,41 @@ def valid_epoch_compound(data_loader, model, losses, config, device):
     }
     return epoch_losses
 
-
-def eval_moe_compound(model, data_loader, save_path, device):
+def eval_moe_compound(model, data_loader, save_dir, device):
     model.eval()
 
-    npy_path = save_path.replace('.txt', '_gating_mean_global.npy')
-    npy_fake_path = save_path.replace('.txt', '_gating_mean_fake.npy')
-    npy_real_path = save_path.replace('.txt', '_gating_mean_real.npy')
-    npy_all_path = save_path.replace('.txt', '_gating_all.npy')
+    # ---- CREATE DIRECTORY IF NEEDED ----
+    os.makedirs(save_dir, exist_ok=True)
 
-    for p in [npy_path, npy_fake_path, npy_real_path, npy_all_path]:
+    # ---- SCORE FILE ----
+    score_txt_path = os.path.join(save_dir, "scores.txt")
+
+    # ---- GATING PATHS ----
+    npy_gating_global = os.path.join(save_dir, "gating_mean_global.npy")
+    npy_gating_fake = os.path.join(save_dir, "gating_mean_fake.npy")
+    npy_gating_real = os.path.join(save_dir, "gating_mean_real.npy")
+    npy_gating_all = os.path.join(save_dir, "gating_all.npy")
+
+    # ---- WEIGHTED EXPERT PATHS ----
+    npy_weighted_global = os.path.join(save_dir, "weighted_mean_global.npy")
+    npy_weighted_fake = os.path.join(save_dir, "weighted_mean_fake.npy")
+    npy_weighted_real = os.path.join(save_dir, "weighted_mean_real.npy")
+    npy_weighted_all = os.path.join(save_dir, "weighted_all.npy")
+
+    # ---- EXPERT PROBS PATHS ----
+    npy_expert_global = os.path.join(save_dir, "expert_mean_global.npy")
+    npy_expert_fake = os.path.join(save_dir, "expert_mean_fake.npy")
+    npy_expert_real = os.path.join(save_dir, "expert_mean_real.npy")
+    npy_expert_all = os.path.join(save_dir, "expert_all.npy")
+
+    all_paths = [
+        npy_gating_global, npy_gating_fake, npy_gating_real, npy_gating_all,
+        npy_weighted_global, npy_weighted_fake, npy_weighted_real, npy_weighted_all,
+        npy_expert_global, npy_expert_fake, npy_expert_real, npy_expert_all
+    ]
+
+    # ---- REMOVE OLD FILES ----
+    for p in all_paths + [score_txt_path]:
         if os.path.exists(p):
             os.remove(p)
             print(f'[INFO] Removed existing file: {p}')
@@ -279,19 +307,26 @@ def eval_moe_compound(model, data_loader, save_path, device):
     scores = []
     labels = []
     identifiers = []
+
     all_weights = []
+    all_weighted = []
+    all_experts = []
 
     for batch_x, batch_y, utt_id in tqdm(data_loader, total=len(data_loader)):
+
         if isinstance(batch_x, dict):
             values = list(batch_x.values())
             batch_x = values[0] if len(values) == 1 else values
 
         batch_x = [x.to(device) for x in batch_x]
 
-        batch_probs, gating_probs = model(batch_x)
+        # ---- MODEL OUTPUTS ----
+        batch_probs, gating_probs, weighted_expert_probs, expert_probs = model(batch_x)
 
         batch_probs = batch_probs.detach().cpu().numpy()
         gating_probs = gating_probs.detach().cpu().numpy()
+        weighted_expert_probs = weighted_expert_probs.detach().cpu().numpy()
+        expert_probs = expert_probs.detach().cpu().numpy()
         batch_y = batch_y.detach().cpu().numpy()
 
         # ---- FILTER INVALID ----
@@ -301,107 +336,85 @@ def eval_moe_compound(model, data_loader, save_path, device):
 
         batch_probs = batch_probs[valid_mask]
         gating_probs = gating_probs[valid_mask]
+        weighted_expert_probs = weighted_expert_probs[valid_mask]
+        expert_probs = expert_probs[valid_mask]
         batch_y = batch_y[valid_mask]
+
         batch_identifiers = [utt_id[i] for i in range(len(utt_id)) if valid_mask[i]]
 
-        all_weights.extend(gating_probs)
         scores.extend(batch_probs)
         labels.extend(batch_y)
         identifiers.extend(batch_identifiers)
 
+        all_weights.extend(gating_probs)
+        all_weighted.extend(weighted_expert_probs)
+        all_experts.extend(expert_probs)
+
     scores = np.array(scores)
     labels = np.array(labels)
+
     all_weights = np.array(all_weights)
+    all_weighted = np.array(all_weighted)
+    all_experts = np.array(all_experts)
 
-    # ---- GLOBAL MEAN GATING ----
-    mean_global = all_weights.mean(axis=0)
-    np.save(npy_path, mean_global)
+    # =========================================================
+    # ---------------- GATING STATS ---------------------------
+    # =========================================================
+    np.save(npy_gating_global, all_weights.mean(axis=0))
+    np.save(npy_gating_all, all_weights)
 
-    # ---- CLASS-CONDITIONAL GATING ----
     if (labels == 1).sum() > 0:
-        mean_fake = all_weights[labels == 1].mean(axis=0)
-        np.save(npy_fake_path, mean_fake)
+        np.save(npy_gating_fake, all_weights[labels == 1].mean(axis=0))
     else:
-        print("No fake samples found.")
+        print("No fake samples found for gating.")
 
     if (labels == 0).sum() > 0:
-        mean_real = all_weights[labels == 0].mean(axis=0)
-        np.save(npy_real_path, mean_real)
+        np.save(npy_gating_real, all_weights[labels == 0].mean(axis=0))
     else:
-        print("No real samples found.")
+        print("No real samples found for gating.")
 
-    # ---- SAVE ALL WEIGHTS FOR FUTURE ANALYSIS ----
-    np.save(npy_all_path, all_weights)
+    # =========================================================
+    # ------------ WEIGHTED EXPERT STATS ----------------------
+    # =========================================================
+    np.save(npy_weighted_global, all_weighted.mean(axis=0))
+    np.save(npy_weighted_all, all_weighted)
+
+    if (labels == 1).sum() > 0:
+        np.save(npy_weighted_fake, all_weighted[labels == 1].mean(axis=0))
+    else:
+        print("No fake samples found for weighted experts.")
+
+    if (labels == 0).sum() > 0:
+        np.save(npy_weighted_real, all_weighted[labels == 0].mean(axis=0))
+    else:
+        print("No real samples found for weighted experts.")
+
+    # =========================================================
+    # ---------------- EXPERT STATS ---------------------------
+    # =========================================================
+    np.save(npy_expert_global, all_experts.mean(axis=0))
+    np.save(npy_expert_all, all_experts)
+
+    if (labels == 1).sum() > 0:
+        np.save(npy_expert_fake, all_experts[labels == 1].mean(axis=0))
+    else:
+        print("No fake samples found for experts.")
+
+    if (labels == 0).sum() > 0:
+        np.save(npy_expert_real, all_experts[labels == 0].mean(axis=0))
+    else:
+        print("No real samples found for experts.")
 
     # ---- SAVE SCORES FILE ----
-    with open(save_path, 'w') as fh:
+    with open(score_txt_path, 'w') as fh:
         for f, pred, lab in zip(identifiers, scores, labels):
-            fh.write('{} {} {}\n'.format(f, pred, lab))
+            fh.write(f'{f} {pred} {lab}\n')
 
-    print('\nScores saved to {}'.format(save_path))
-    print("Saved gating statistics (.npy files).\n")
+    print(f'\nScores saved to {score_txt_path}')
+    print("Saved gating, weighted experts, and expert statistics.\n")
 
     return scores, labels
 
-
-# def eval_moe_compound(model, data_loader, save_path, device):
-#     model.eval()
-#     total_gating_weights = None
-#     batch_count = 0
-#
-#     npy_path = save_path.replace('.txt', '.npy')
-#     if os.path.exists(npy_path):
-#         os.remove(npy_path)
-#         print(f'[INFO] Removed existing .npy file: {npy_path}')
-#
-#     scores = []
-#     labels = []
-#     identifiers = []
-#     for batch_x, batch_y, utt_id in tqdm(data_loader, total=len(data_loader)):
-#         if isinstance(batch_x, dict):
-#             values = list(batch_x.values())
-#             if len(values) == 1:
-#                 batch_x = values[0]
-#             else:
-#                 batch_x = values
-#
-#         batch_x = [x.to(device) for x in batch_x]
-#         batch_probs, gating_probs = model(batch_x)
-#
-#         batch_probs = batch_probs.detach().cpu().numpy()
-#         gating_probs = gating_probs.detach().cpu().numpy()
-#         batch_y = batch_y.detach().cpu().numpy()
-#
-#         valid_mask = batch_y != -1
-#
-#         if np.sum(valid_mask) == 0:
-#             continue  # skip batch
-#
-#         batch_probs = batch_probs[valid_mask]
-#         gating_probs = gating_probs[valid_mask]
-#         batch_y = batch_y[valid_mask]
-#         batch_identifiers = [utt_id[i] for i in range(len(utt_id)) if valid_mask[i]]
-#
-#         if total_gating_weights is None:
-#             total_gating_weights = np.sum(gating_probs, axis=0)
-#         else:
-#             total_gating_weights += np.sum(gating_probs, axis=0)
-#
-#         batch_count += len(batch_y)
-#
-#         averaged_gating_weights = total_gating_weights / batch_count  # shape: (num_experts)
-#         np.save(npy_path, averaged_gating_weights)
-#
-#         scores.extend(batch_probs)
-#         labels.extend(batch_y)
-#         identifiers.extend(batch_identifiers)
-#
-#     with open(save_path, 'w') as fh:
-#         for f, pred, lab in zip(identifiers, scores, labels):
-#             fh.write('{} {} {}\n'.format(f, pred, lab))
-#
-#     print('Scores saved to {}\n'.format(save_path))
-#     return scores, labels
 
 #-------------------------------- BASELINE ---------------------------------#
 

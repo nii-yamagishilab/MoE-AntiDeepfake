@@ -18,7 +18,7 @@ class FlatteningLoss(nn.Module):
         return F.mse_loss(x, target)
 
 class MOE_ICASSP(nn.Module):
-    def __init__(self, experts, freezing=False, return_weights=False):
+    def __init__(self, experts, freezing=True, return_weights=False):
         super(MOE_ICASSP, self).__init__()
 
         self.return_weights = return_weights
@@ -78,20 +78,20 @@ class MOE_ICASSP(nn.Module):
         expert_probs = torch.softmax(stacked_logits, dim=-1)
 
         combined_output = torch.sum(gating_weights * expert_probs, dim=1)
-        # weights_x_probs = gating_weights * expert_probs
+        weights_x_probs = gating_weights * expert_probs
 
         if self.return_weights:
             return combined_output, gating_weights
-        else:
-            return combined_output
+        else:  # return all for eval analysis
+            return combined_output, gating_weights, weights_x_probs, expert_probs
 
 
 class MOE_WIFS(nn.Module):
-    def __init__(self, experts, freezing=False, return_weights=False):
+    def __init__(self, experts, freezing=True, return_weights=False):
         super(MOE_WIFS, self).__init__()
 
         self.return_weights = return_weights
-        self.temperature = 1.2
+        self.temperature = 1
         self.hidden_dim = 128
         self.proj_dim = 32
 
@@ -121,8 +121,34 @@ class MOE_WIFS(nn.Module):
                 for param in expert.parameters():
                     param.requires_grad = False
 
-    def forward(self, x):
+    # def forward(self, x):
+    #     if isinstance(x, list):
+    #         results = [expert(feat) for expert, feat in zip(self.experts, x)]
+    #     else:
+    #         results = [expert(x) for expert in self.experts]
+    #
+    #     outputs = [res[0] for res in results]
+    #     embeddings = [res[1] for res in results]
+    #
+    #     processed_embs = torch.stack([proc_emb(emb) for proc_emb, emb in zip(self.proc_emb, embeddings)], dim=1)
+    #
+    #     transf_out = self.TransfEnc(processed_embs)
+    #
+    #     gating_weights = self.linear_out(transf_out)
+    #     gating_weights = self.softmax(gating_weights / self.temperature)
+    #
+    #     stacked_logits = torch.stack(outputs, dim=1)
+    #     expert_probs = torch.sigmoid(stacked_logits)
+    #
+    #     combined_output = torch.sum(gating_weights * expert_probs.unsqueeze(-1), dim=1)
+    #     weights_x_probs = gating_weights * expert_probs.unsqueeze(-1)
+    #
+    #     if self.return_weights:
+    #         return combined_output, weights_x_probs
+    #     else:  # return all for eval analysis
+    #         return combined_output, gating_weights, weights_x_probs, expert_probs
 
+    def forward(self, x):
         if isinstance(x, list):
             results = [expert(feat) for expert, feat in zip(self.experts, x)]
         else:
@@ -139,12 +165,11 @@ class MOE_WIFS(nn.Module):
         gating_weights = self.softmax(gating_weights / self.temperature)
 
         stacked_logits = torch.stack(outputs, dim=1)
-        expert_probs = torch.softmax(stacked_logits, dim=-1)
 
-        combined_output = torch.sum(gating_weights * expert_probs.unsqueeze(-1), dim=1)
-        # weights_x_probs = gating_weights * expert_probs.unsqueeze(-1)
+        weighted_logits = gating_weights * stacked_logits.unsqueeze(-1)
+        combined_output = torch.sum(weighted_logits, dim=1)
 
         if self.return_weights:
-            return combined_output, gating_weights
+            return combined_output, weighted_logits
         else:
-            return combined_output
+            return combined_output, gating_weights, weighted_logits, stacked_logits

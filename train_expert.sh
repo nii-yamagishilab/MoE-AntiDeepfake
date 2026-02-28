@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=train_expert
-#SBATCH --out="train_flat_pitch_mlp.out.txt"
+#SBATCH --out="txt/train_flat_pitch_mlp.out.txt"
 #SBATCH --time=3-00:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1

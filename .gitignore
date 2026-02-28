@@ -8,6 +8,7 @@ results/
 baseline/csv_files/
 examples/
 temp_feat/
+txt/
 
 notebooks/0_pitch_mod_analyze.ipynb
 notebooks/0a_analyze_results.ipynb

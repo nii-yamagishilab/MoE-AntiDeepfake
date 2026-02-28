@@ -33,7 +33,8 @@ def main(checkpoint_paths, model_classes):
         name = Path(checkpoint_paths[i]).stem.rsplit('_', 1)[-1]
         model_names.append(name)
 
-    targets = ['A01', 'A02', 'A03', 'A04', 'A07',  'A08', 'A09', 'A10', 'A11', 'A12']
+    # targets = ['A01', 'A02', 'A03', 'A04', 'A07',  'A08', 'A09', 'A10', 'A11', 'A12']
+    targets = ['A01']
     for t in range(len(targets)):
         config['selected_target'] = [targets[t]]
 
@@ -44,6 +45,21 @@ def main(checkpoint_paths, model_classes):
 
             with torch.no_grad():
                 scores, labels = eval_expert(expert, eval_loader, device)
+
+            # scores = torch.tensor(scores)
+            # scores = torch.sigmoid(scores)  # logits → probabilities
+            # scores = scores.cpu().numpy()
+            #
+            # labels = np.array(labels)
+            #
+            # print(f"Valid samples: {len(labels)}")
+            # print(f"Num fake: {(labels == 1).sum()}, Num real: {(labels == 0).sum()}")
+            #
+            # fake_scores = scores[labels == 1]
+            # real_scores = scores[labels == 0]
+            #
+            # print(f"Mean score (fake=1): {fake_scores.mean():.6f}")
+            # print(f"Mean score (real=0): {real_scores.mean():.6f}")
 
             rocauc, eer = compute_metrics(labels, scores)
             print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n")

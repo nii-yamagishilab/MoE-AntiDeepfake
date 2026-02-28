@@ -113,7 +113,7 @@ def load_evaluation_data(models_list, config):
         # unique_mods = list({ mod for model, mod in MANIPULATIONS_REGISTRY if model in models_list})
         # target_df = list({code for mod, code in TARGET_DF_REGISTRY if mod in unique_mods})
         target_df = config['selected_target']
-        print(f"Target generator: {target_df}\n")
+        print(f"Target generator: {target_df}")
 
         dfs = []
         nb_class_samples = 1000
@@ -169,9 +169,9 @@ def load_evaluation_data(models_list, config):
         labels_eval = list(df_eval['label'])
         eval_set = LoadEvaluationData(list_IDs=file_eval, labels=labels_eval, models_list=models_list, config=config)
 
-    eval_loader = DataLoader(eval_set, batch_size=config['batch_size'], shuffle=False)
+    eval_loader = DataLoader(eval_set, batch_size=config['batch_size_moe'], shuffle=False)
     del eval_set
-    print(f'Total no. of eval samples: {len(eval_loader.dataset)} \n')
+    print(f'Total no. of eval samples: {len(eval_loader.dataset)}')
 
     return eval_loader
 
