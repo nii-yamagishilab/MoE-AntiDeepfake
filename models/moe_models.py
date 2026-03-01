@@ -91,7 +91,7 @@ class MOE_WIFS(nn.Module):
         super(MOE_WIFS, self).__init__()
 
         self.return_weights = return_weights
-        self.temperature = 1
+        self.temperature = 1.2
         self.hidden_dim = 128
         self.proj_dim = 32
 

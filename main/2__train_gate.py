@@ -130,5 +130,5 @@ if __name__ == '__main__':
         train_moe(ckpts, config)
 
 
-    setup_moe_model(model_name='frozen_5_exp_wxL_no_temp.pth',
+    setup_moe_model(model_name='frozen_5_exp_wxL_bce_only.pth',
                     freeze_experts=True)

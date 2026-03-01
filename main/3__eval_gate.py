@@ -106,7 +106,7 @@ if __name__ == '__main__':
         config['selected_mods'] = ['min_phase']
     config['target_check'] = True
 
-    ckpt_moe = os.path.join(ckpt_moe_path, 'frozen_5_experts_wxp.pth')
+    ckpt_moe = os.path.join(ckpt_moe_path, 'frozen_5_exp_wxL_no_temp.pth')
     ckpts_experts = [
         os.path.join(ckpt_exp_path, 'FLAT_PITCH_MLP.pth'),
         os.path.join(ckpt_exp_path, 'F0_INCONS_MLP.pth'),

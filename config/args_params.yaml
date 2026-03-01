@@ -12,9 +12,9 @@ num_epochs: 100
 early_stopping: 20
 lr: 1e-3
 
-wb: 0
-wa: 1
-# wa: 0.5
+wb: 1
+# wa: 1
+wa: 0
 wf: 0
 
 # valid only for ASVspoof 2019 train+dev 80/20 split (random seed 42)
