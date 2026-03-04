@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.insert(1, os.getcwd())
 from pathlib import Path
-from models.moe_models import MOE_ICASSP, MOE_WIFS
+from models.moe_models import MOE_ICASSP, MOE_WIFS, MOE_WIFS_v2
 from utils.data_utils import load_evaluation_data
 from utils.training_utils import eval_moe_compound
 from utils.utils import *
@@ -50,39 +50,39 @@ def test_moe(checkpoint_moe, ckpts_experts, save_folder, config):
     moe_model.load_state_dict(torch.load(checkpoint_moe, map_location=device))
     print('Model loaded : {}'.format(os.path.basename(checkpoint_moe)))
 
-    targets = ['A01', 'A02', 'A03', 'A04', 'A07',  'A08', 'A09', 'A10', 'A11', 'A12']
-    for t in range(len(targets)):
-        target = targets[t]
-        config['selected_target'] = [target]
-        result_path = os.path.join(save_folder, f"{config['selected_target'][0]}", os.path.basename(os.path.splitext(checkpoint_moe)[0]))
-        Path(result_path).mkdir(parents=True, exist_ok=True)
-        print(f"Result path: {result_path}")
+    # targets = ['A01', 'A02', 'A03', 'A04', 'A07',  'A08', 'A09', 'A10', 'A11', 'A12']
+    # for t in range(len(targets)):
+    #     target = targets[t]
+    #     config['selected_target'] = [target]
+    #     result_path = os.path.join(save_folder, f"{config['selected_target'][0]}", os.path.basename(os.path.splitext(checkpoint_moe)[0]))
+    #     Path(result_path).mkdir(parents=True, exist_ok=True)
+    #     print(f"Result path: {result_path}")
 
-    # config['selected_target'] = ['A01', 'A02', 'A03', 'A04', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12']
-    # result_path = os.path.join(save_folder, 'ALL', os.path.basename(os.path.splitext(checkpoint_moe)[0]))
-    # Path(result_path).mkdir(parents=True, exist_ok=True)
-    # print(f"Result path: {result_path}\n")
+    config['selected_target'] = ['A01', 'A02', 'A03', 'A04', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12']
+    result_path = os.path.join(save_folder, 'ALL', os.path.basename(os.path.splitext(checkpoint_moe)[0]))
+    Path(result_path).mkdir(parents=True, exist_ok=True)
+    print(f"Result path: {result_path}\n")
 
-        # LOAD EVAL DATA
-        eval_loader = load_evaluation_data(models_list, config)
+    # LOAD EVAL DATA
+    eval_loader = load_evaluation_data(models_list, config)
 
-        with torch.no_grad():
-            scores, labels = eval_moe_compound(moe_model, eval_loader, result_path, device)
+    with torch.no_grad():
+        scores, labels = eval_moe_compound(moe_model, eval_loader, result_path, device)
 
-        scores = np.array(scores)
-        labels = np.array(labels)
+    scores = np.array(scores)
+    labels = np.array(labels)
 
-        print(f"Valid samples: {len(labels)}")
-        print(f"Num fake: {(labels == 1).sum()}, Num real: {(labels == 0).sum()}")
+    print(f"Valid samples: {len(labels)}")
+    print(f"Num fake: {(labels == 1).sum()}, Num real: {(labels == 0).sum()}")
 
-        fake_scores = scores[labels == 1]
-        real_scores = scores[labels == 0]
+    fake_scores = scores[labels == 1]
+    real_scores = scores[labels == 0]
 
-        print(f"Mean score (fake=1): {fake_scores.mean():.6f}")
-        print(f"Mean score (real=0): {real_scores.mean():.6f}")
+    print(f"Mean score (fake=1): {fake_scores.mean():.6f}")
+    print(f"Mean score (real=0): {real_scores.mean():.6f}")
 
-        rocauc, eer = compute_metrics(labels, scores)
-        print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n\n")
+    rocauc, eer = compute_metrics(labels, scores)
+    print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n\n")
 
 
 if __name__ == '__main__':
@@ -106,16 +106,15 @@ if __name__ == '__main__':
         config['selected_mods'] = ['min_phase']
     config['target_check'] = True
 
-    ckpt_moe = os.path.join(ckpt_moe_path, 'frozen_5_exp_wxL_no_temp.pth')
+    ckpt_moe = os.path.join(ckpt_moe_path, 'frozen_5_exp_new_bestauc.pth')
     ckpts_experts = [
         os.path.join(ckpt_exp_path, 'FLAT_PITCH_MLP.pth'),
         os.path.join(ckpt_exp_path, 'F0_INCONS_MLP.pth'),
         os.path.join(ckpt_exp_path, 'OVERSMOOTH_GRU.pth'),
         os.path.join(ckpt_exp_path, 'MIN_PHASE_LCNN.pth'),
-        os.path.join(ckpt_exp_path, 'PERF_SIL_LCNN.pth')
+        os.path.join(ckpt_exp_path, 'ENERGY_LCNN.pth')
     ]
 
-    # save_folder = os.path.join(save_path, "Full_ASV19")
     # save_folder = os.path.join(save_path, "SanityCheck")
     save_folder = os.path.join(save_path, "TargetCheck")
 

@@ -7,6 +7,20 @@ import torch.nn as nn
 import yaml
 from sklearn.metrics import roc_curve, auc, balanced_accuracy_score
 
+from scipy.optimize import brentq
+from scipy.interpolate import interp1d
+
+
+def compute_metrics_v2(labels, scores):
+    fpr, tpr, thresholds = roc_curve(labels, scores)
+    rocauc = auc(fpr, tpr)
+    fnr = 1 - tpr
+
+    # Interpolate
+    eer_func = interp1d(fpr, fnr)
+    eer = brentq(lambda x: eer_func(x) - x, 0., 1.)
+
+    return rocauc, eer
 
 def compute_metrics(labels, scores):
     fpr, tpr, thres = roc_curve(labels, scores)

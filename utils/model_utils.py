@@ -7,7 +7,6 @@ from models.lcnn_model import LCNN
                             # WARNING: THE ORDERING LOGIC MATTERS !!! #
                             # ----------------------------------------#
 
-
 MODEL_REGISTRY = [
     ("MLP", MLP_Model),      # flat pitch
     ("MLP", MLP_Model_v2),   # f0 inconsistency
@@ -21,15 +20,7 @@ MANIPULATIONS_REGISTRY = [
     ("MLP", "flat_pitch"),
     ("GRU", "oversmooth"),
     ("LCNN", "min_phase"),
-    ("LCNN", "perf_sil")
-]
-
-TARGET_DF_REGISTRY = [
-    ("flat_pitch", "A01"),
-    ("oversmooth", "A03"),
-    ("min_phase", "A03"),
-    ("f0_incons", "A04"),
-    ("perf_sil",  "A09")
+    ("LCNN", "energy")
 ]
 
 def get_model_type_from_ckpt(ckpt_path):

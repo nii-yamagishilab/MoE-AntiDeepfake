@@ -33,8 +33,8 @@ def main(checkpoint_paths, model_classes):
         name = Path(checkpoint_paths[i]).stem.rsplit('_', 1)[-1]
         model_names.append(name)
 
-    # targets = ['A01', 'A02', 'A03', 'A04', 'A07',  'A08', 'A09', 'A10', 'A11', 'A12']
-    targets = ['A01']
+    targets = ['A01', 'A02', 'A03', 'A04', 'A07',  'A08', 'A09', 'A10', 'A11', 'A12']
+    # targets = ['A01']
     for t in range(len(targets)):
         config['selected_target'] = [targets[t]]
 
@@ -76,12 +76,12 @@ if __name__ == '__main__':
 
     # --------------------- PLEASE DEFINE ----------------------#
 
-    config['mod'] = 'flat_pitch'
+    config['mod'] = 'energy'
     config['sanity_check'] = False
     config['target_check'] = True
 
-    config['model'] = 'MLP'
-    model_classes = [MLP_Model]
+    config['model'] = 'LCNN'
+    model_classes = [LCNN]
 
     # ------------------------- Thanks -------------------------#
 

@@ -96,8 +96,8 @@ if __name__ == '__main__':
     config['train_data'] = 'asv19'
     config['merge'] = True
 
-    config['model'] = 'mlp'
-    config['mod'] = 'flat_pitch'
+    config['model'] = 'lcnn'
+    config['mod'] = 'energy'
 
     # ----------------------------- Thanks --------------------------- #
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=eval_expert
-#SBATCH --out="txt/eval_expert.out.txt"
+#SBATCH --out="txt/E_expert_energy_lcnn.out.txt"
 #SBATCH --time=03:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1

@@ -142,7 +142,7 @@ def extract_feature(x, mod, stft_params):
     elif mod == 'oversmooth':
         feat = lsf_extraction(x, stft_params=stft_params, lsf_order=20)
 
-    elif mod == 'perf_sil':
+    elif mod == 'energy':
         feat = spec_extraction(x, stft_params)
 
     elif mod == 'min_phase':
@@ -162,7 +162,7 @@ def apply_manipulation(feat, mod, stft_params):
     elif mod == 'oversmooth':
         feat_mod = lsf_manipulation_smoothing(feat)
 
-    elif mod == 'perf_sil':
+    elif mod == 'energy':
         feat_mod = spec_manipulation(feat, stft_params)  # here feat is the raw wav
 
     elif mod == 'min_phase':
@@ -184,6 +184,7 @@ class LoadTrainData(Dataset):
         self.win_len = config['win_len']
         self.stft_params = STFTWindowParams()
 
+        self.mod = config['mod']
         self.f0_stats = config['f0_train_stats']
         self.models_list = models_list
 
@@ -200,18 +201,21 @@ class LoadTrainData(Dataset):
 
         # find the manipulation corresponding to each expert in the list
         # assume registry is a list of (model, manipulation)
-        for model_type in self.models_list:
-            manipulation = None
-            for m, mod in registry:
-                if m == model_type:
-                    manipulation = mod
-                    registry.remove((m, mod))  # remove the used pair to keep mapping one-to-one
-                    break
+        if self.mod == 'all':
+            for model_type in self.models_list:
+                manipulation = None
+                for m, mod in registry:
+                    if m == model_type:
+                        manipulation = mod
+                        registry.remove((m, mod))  # remove the used pair to keep mapping one-to-one
+                        break
 
-            if manipulation is None:
-                raise ValueError(f"No manipulation found for model {model_type}")
+                if manipulation is None:
+                    raise ValueError(f"No manipulation found for model {model_type}")
 
-            mod_list.append(manipulation)
+                mod_list.append(manipulation)
+        else:
+            mod_list.append(self.mod)
 
         # EXTRACT FEATURES
 
@@ -256,7 +260,7 @@ class LoadTrainData(Dataset):
 
                 if idx % 2 == 0:
 
-                    if mod in ['min_phase', 'perf_sil']:
+                    if mod in ['min_phase', 'energy']:
                         feat_mod = apply_manipulation(x.numpy(), mod=mod, stft_params=self.stft_params)
                     else:
                         feat_mod = apply_manipulation(feat, mod=mod, stft_params=self.stft_params)
@@ -308,7 +312,7 @@ class LoadTrainData(Dataset):
                 for mod in selected_mods:
                     feat = feat_dict[mod]
 
-                    if mod in ['min_phase', 'perf_sil']:
+                    if mod in ['min_phase', 'energy']:
                         feat_mod = apply_manipulation(x.numpy(), mod=mod, stft_params=self.stft_params)
                     else:
                         feat_mod = apply_manipulation(feat, mod=mod, stft_params=self.stft_params)
@@ -426,7 +430,7 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
             for mod in self.selected_mods:
                 feat = feat_dict[mod]
 
-                if mod in ['min_phase', 'perf_sil']:
+                if mod in ['min_phase', 'energy']:
                     feat_mod = apply_manipulation(x.numpy(), mod=mod, stft_params=self.stft_params)
                 else:
                     feat_mod = apply_manipulation(feat.numpy() if isinstance(feat, torch.Tensor) else feat, mod=mod, stft_params=self.stft_params)
@@ -475,6 +479,8 @@ class LoadEvaluationData(Dataset):
         self.list_IDs = list_IDs
         self.labels = labels
 
+        self.mod = config['mod']
+
         self.fs = config['fs']
         self.win_len = config['win_len']
         self.stft_params = STFTWindowParams()
@@ -493,18 +499,19 @@ class LoadEvaluationData(Dataset):
         mod_list = []
         registry = MANIPULATIONS_REGISTRY.copy()
 
-        for model_type in self.models_list:
-            manipulation = None
-            for m, mod in registry:
-                if m == model_type:
-                    manipulation = mod
-                    registry.remove((m, mod))
-                    break
-
-            if manipulation is None:
-                raise ValueError(f"No manipulation found for model {model_type}")
-
-            mod_list.append(manipulation)
+        if self.mod == 'all':
+            for model_type in self.models_list:
+                manipulation = None
+                for m, mod in registry:
+                    if m == model_type:
+                        manipulation = mod
+                        registry.remove((m, mod))
+                        break
+                if manipulation is None:
+                    raise ValueError(f"No manipulation found for model {model_type}")
+                mod_list.append(manipulation)
+        else:
+            mod_list.append(self.mod)
 
         # EXTRACT FEATURES
 

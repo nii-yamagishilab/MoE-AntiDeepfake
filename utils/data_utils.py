@@ -103,15 +103,15 @@ def load_evaluation_data(models_list, config):
 
         df_train['label'] = df_train[4].map({'bonafide': 0, 'spoof': 1})
         df_train['path'] = df_train[1].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
+        # df_train = df_train[df_train['label'] == 1]
         df_dev['label'] = df_dev[4].map({'bonafide': 0, 'spoof': 1})
         df_dev['path'] = df_dev[1].apply(lambda x: os.path.join(ds['base_path'], ds['dev_dir'], f"{x}.flac"))
+        # df_dev = df_dev[df_dev['label'] == 1]
         df_test['label'] = df_test[4].map({'bonafide': 0, 'spoof': 1})
         df_test['path'] = df_test[1].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac"))
 
         df_all = pd.concat([df_train, df_dev, df_test], ignore_index=True)
 
-        # unique_mods = list({ mod for model, mod in MANIPULATIONS_REGISTRY if model in models_list})
-        # target_df = list({code for mod, code in TARGET_DF_REGISTRY if mod in unique_mods})
         target_df = config['selected_target']
         print(f"Target generator: {target_df}")
 

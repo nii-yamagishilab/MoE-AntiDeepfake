@@ -7,7 +7,7 @@ import pysptk
 from scipy.fft import ifft
 import torch
 import torchaudio
-
+import math
 
 ################################################################################################################
 #------------------------------------------------- EXTRACTION -------------------------------------------------#
@@ -179,7 +179,7 @@ def phase_extraction(wav, key, stft_params):
     return x_phase[key]
 
 
-#___________________________Perfect Silence_________________________#
+#___________________________Energy Inconsistency_________________________#
 
 def apply_db(spec):
     spec_db = torchaudio.functional.amplitude_to_DB(
@@ -479,12 +479,11 @@ def stft_to_min_phase(y, sr, win_length=512, hop_length=256, n_fft=None):
     return y_min_phase.T
 
 
-#___________________________Perfect Silence_________________________#
+#___________________________Energy Inconsistency_________________________#
 
 def spec_manipulation(y, stft_params):
     """
     Compute a spectrogram from waveform y and zero out a time region directly in the waveform.
-    90% of the time zeroing is at the end, 10% anywhere.
     """
     y = torch.tensor(y).float()
     n_samples = y.shape[-1] if y.dim() > 1 else y.shape[0]
@@ -496,13 +495,15 @@ def spec_manipulation(y, stft_params):
         power=2
     )(y.unsqueeze(0))  # just to get n_time
     n_time = spec_dummy.shape[-1]
-    width = random.randint(10, 50)
+    # width = random.randint(10, 50)
+    width = random.randint(6, 30)
 
-    if random.random() < 0.9:
-        # 90% at the end
-        start_idx = max(n_time - width - random.randint(0, 5), 0)
-    else:
-        start_idx = random.randint(0, max(n_time - width, 0))
+    # if random.random() < 0.9:
+    #     # 90% at the end
+    #     start_idx = max(n_time - width - random.randint(0, 5), 0)
+    # else:
+    start_idx = random.randint(0, max(n_time - width, 0))
+
     end_idx = start_idx + width
     end_idx = min(end_idx, n_time)
 
@@ -514,7 +515,10 @@ def spec_manipulation(y, stft_params):
     end_sample = min(n_samples, (end_idx - 1) * hop_length + fft_size)
 
     y_zeroed = y.clone()
-    y_zeroed[start_sample:end_sample] = 0.0
+
+    # y_zeroed[start_sample:end_sample] = 0.0
+    attenuation = random.uniform(0.0, math.sqrt(0.5))
+    y_zeroed[start_sample:end_sample] *= attenuation
 
     spec_transform = torchaudio.transforms.Spectrogram(
         n_fft=fft_size,
@@ -525,10 +529,6 @@ def spec_manipulation(y, stft_params):
     spec_db = apply_db(spec)
 
     return spec_db
-
-
-
-
 
 
 

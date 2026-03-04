@@ -9,7 +9,7 @@ def train_epoch_expert(train_loader, model, optim, criterion, device):
     num_total = 0.0
     model.train()
 
-    for batch_x, batch_y in tqdm(train_loader, total=len(train_loader)):
+    for batch_x, batch_y, _ in tqdm(train_loader, total=len(train_loader)):
         if isinstance(batch_x, dict):
             values = list(batch_x.values())
             if len(values) == 1:
@@ -41,7 +41,7 @@ def valid_epoch_expert(data_loader, model, criterion, device):
 
     model.eval()
 
-    for batch_x, batch_y in tqdm(data_loader, total=len(data_loader)):
+    for batch_x, batch_y, _ in tqdm(data_loader, total=len(data_loader)):
         if isinstance(batch_x, dict):
             values = list(batch_x.values())
             if len(values) == 1:
@@ -109,7 +109,6 @@ def train_epoch_compound(train_loader, model, optim, losses, config, device):
 
     running_bce_loss = 0.0
     running_attr_loss = 0.0
-    running_flat_loss = 0.0
     running_tot_loss = 0.0
 
     model.train()
@@ -153,20 +152,11 @@ def train_epoch_compound(train_loader, model, optim, losses, config, device):
         else:
             batch_attr_loss = torch.tensor(0.0, device=batch_x.device)
 
-        # Custom Loss (Flattening Loss, real-only)
-        if real_mask.any():
-            batch_flat_loss = losses['flatten'](gate_probs[real_mask])
-        else:
-            batch_flat_loss = torch.tensor(0.0, device=batch_x.device)
-
-
         running_bce_loss += batch_bce_loss.item() * batch_size
         running_attr_loss += batch_attr_loss.item() * fake_mask.sum().item()
-        running_flat_loss += batch_flat_loss.item() * real_mask.sum().item()
 
         batch_total_loss = (config['wb']*batch_bce_loss +
-                            config['wa']*batch_attr_loss +
-                            config['wf']*batch_flat_loss)
+                            config['wa']*batch_attr_loss)
 
         running_tot_loss += batch_total_loss.item() * batch_size
 
@@ -176,14 +166,12 @@ def train_epoch_compound(train_loader, model, optim, losses, config, device):
 
     running_bce_loss /= num_tot
     running_attr_loss /= max(num_tot_fakes, 1)
-    running_flat_loss /= max(num_tot_real, 1)
     running_tot_loss /= num_tot
 
     epoch_losses = {
         "total": running_tot_loss,
         "bce": running_bce_loss,
         "attr": running_attr_loss,
-        "flat": running_flat_loss,
     }
     return epoch_losses
 
@@ -194,10 +182,12 @@ def valid_epoch_compound(data_loader, model, losses, config, device):
 
     running_bce_loss = 0.0
     running_attr_loss = 0.0
-    running_flat_loss = 0.0
     running_tot_loss = 0.0
 
     model.eval()
+
+    scores = []
+    labels = []
 
     for batch_x, batch_y, batch_k in tqdm(data_loader, total=len(data_loader)):
         if isinstance(batch_x, dict):
@@ -235,34 +225,38 @@ def valid_epoch_compound(data_loader, model, losses, config, device):
         else:
             batch_attr_loss = torch.tensor(0.0, device=batch_x.device)
 
-        # Custom Loss (Flattening Loss, real-only)
-        if real_mask.any():
-            batch_flat_loss = losses['flatten'](gate_probs[real_mask])
-        else:
-            batch_flat_loss = torch.tensor(0.0, device=batch_x.device)
-
         running_bce_loss += batch_bce_loss.item() * batch_size
         running_attr_loss += batch_attr_loss.item() * fake_mask.sum().item()
-        running_flat_loss += batch_flat_loss.item() * real_mask.sum().item()
 
         batch_total_loss = (batch_bce_loss +
-                            config['wa'] * batch_attr_loss +
-                            config['wf'] * batch_flat_loss)
+                            config['wa'] * batch_attr_loss)
 
         running_tot_loss += batch_total_loss.item() * batch_size
 
+        batch_probs = batch_probs.detach().cpu().numpy()
+        batch_y = batch_y.detach().cpu().numpy()
+        valid_mask = batch_y != -1
+        if np.sum(valid_mask) == 0:
+            continue
+        batch_probs = batch_probs[valid_mask]
+        batch_y = batch_y[valid_mask]
+        scores.extend(batch_probs)
+        labels.extend(batch_y)
+
     running_bce_loss /= num_tot
     running_attr_loss /= max(num_tot_fakes, 1)
-    running_flat_loss /= max(num_tot_real, 1)
     running_tot_loss /= num_tot
 
     epoch_losses = {
         "total": running_tot_loss,
         "bce": running_bce_loss,
         "attr": running_attr_loss,
-        "flat": running_flat_loss,
     }
-    return epoch_losses
+
+    scores = np.array(scores)
+    labels = np.array(labels)
+
+    return epoch_losses, scores, labels
 
 def eval_moe_compound(model, data_loader, save_dir, device):
     model.eval()
