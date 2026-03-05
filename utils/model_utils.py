@@ -16,8 +16,8 @@ MODEL_REGISTRY = [
 ]
 
 MANIPULATIONS_REGISTRY = [
-    ("MLP", "f0_incons"),
     ("MLP", "flat_pitch"),
+    ("MLP", "f0_incons"),
     ("GRU", "oversmooth"),
     ("LCNN", "min_phase"),
     ("LCNN", "energy")

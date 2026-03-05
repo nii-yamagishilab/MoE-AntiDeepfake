@@ -6,9 +6,9 @@ fs: 16000
 win_len: 3
 
 batch_size: 128
-batch_size_moe: 64
+batch_size_eval: 64
 
-num_epochs: 100
+num_epochs: 50
 early_stopping: 20
 lr: 1e-3
 lr_moe: 1e-3

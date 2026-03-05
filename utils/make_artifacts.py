@@ -297,7 +297,6 @@ def f0_segment_shuffle(f0_traj, seg_len_s, hop_s, p_shuffle):
     return f0_mod
 
 def flatten_f0(f0_traj, strength=0.5, dyn_strength=0.0):
-
     f0_mod = f0_traj.copy()
     voiced = f0_mod > 0
 

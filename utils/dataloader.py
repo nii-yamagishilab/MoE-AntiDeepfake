@@ -7,7 +7,7 @@ from utils.model_utils import MANIPULATIONS_REGISTRY
 
 import warnings
 warnings.simplefilter(action='ignore', category=UserWarning)
-
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 #-------------------------------------- COMMON FUNCTIONS ----------------------------------#
 
@@ -371,7 +371,7 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         self.f0_stats = config['f0_train_stats']
         self.models_list = models_list
 
-        self.selected_mods = config['selected_mods']
+        self.selected_mods = config['selected']
 
     def __len__(self):
         return len(self.list_IDs)
@@ -382,20 +382,22 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         label = 0
         track_name = os.path.splitext(os.path.basename(path))[0]
 
-        registry = MANIPULATIONS_REGISTRY.copy()
-        for model_type in self.models_list:
-            manipulation = None
-            for m, mod in registry:
-                if m == model_type:
-                    manipulation = mod
-                    registry.remove((m, mod))
-                    break
-            if manipulation is None:
-                raise ValueError(f"No manipulation found for model {model_type}")
-            mod_list.append(manipulation)
+        if len(self.selected_mods) > 1 or len(self.models_list) > 1:
+            registry = MANIPULATIONS_REGISTRY.copy()
+            for model_type in self.models_list:
+                manipulation = None
+                for m, mod in registry:
+                    if m == model_type:
+                        manipulation = mod
+                        registry.remove((m, mod))
+                        break
+                if manipulation is None:
+                    raise ValueError(f"No manipulation found for model {model_type}")
+                mod_list.append(manipulation)
+        else:
+            mod_list.append(self.selected_mods[0])
 
         # EXTRACT FEATURES
-
         x = load_audio_track(path, trim=False, normalize=True)
         x = torch.Tensor(x)
         feat_dict = {}
@@ -439,7 +441,7 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
 
             label = 1
 
-        # Extract proxy features when needed
+        # Extract proxy features
 
         for mod in mod_list:
             if mod in invalid_mods:
@@ -448,8 +450,7 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
 
             feat = feat_dict[mod]
             if mod in ['f0_incons', 'flat_pitch']:
-
-                feat = extract_proxy_scalars_F0(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
+                feat_new = extract_proxy_scalars_F0(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
 
                 if mod == 'f0_incons':
                     mean = torch.tensor(self.f0_stats['mean_incons'])
@@ -458,19 +459,19 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
                     mean = torch.tensor(self.f0_stats['mean_flat'])
                     std = torch.tensor(self.f0_stats['std_flat'])
 
-                if np.all(feat == 0.0):
+                if np.all(feat_new == 0.0):
                     label = -1
-                    feat = torch.zeros(10, dtype=torch.float32)
+                    feat_new = torch.zeros(10, dtype=torch.float32)
                 else:
-                    feat = torch.tensor(feat, dtype=torch.float32)
-                    feat = (feat - mean) / (std + 1e-8)
+                    feat_new = torch.tensor(feat_new, dtype=torch.float32)
+                    feat_new = (feat_new - mean) / (std + 1e-8)
 
-                feat = torch.tensor(feat, dtype=torch.float32)
+                feat_new = torch.tensor(feat_new, dtype=torch.float32)
 
             else:
-                feat = torch.tensor(feat, dtype=torch.float32)
+                feat_new = torch.tensor(feat, dtype=torch.float32)
 
-            feat_dict[mod] = feat
+            feat_dict[mod] = feat_new
 
         return feat_dict, label, track_name
 
@@ -478,8 +479,6 @@ class LoadEvaluationData(Dataset):
     def __init__(self, list_IDs, labels, models_list, config):
         self.list_IDs = list_IDs
         self.labels = labels
-
-        self.mod = config['mod']
 
         self.fs = config['fs']
         self.win_len = config['win_len']
@@ -499,19 +498,16 @@ class LoadEvaluationData(Dataset):
         mod_list = []
         registry = MANIPULATIONS_REGISTRY.copy()
 
-        if self.mod == 'all':
-            for model_type in self.models_list:
-                manipulation = None
-                for m, mod in registry:
-                    if m == model_type:
-                        manipulation = mod
-                        registry.remove((m, mod))
-                        break
-                if manipulation is None:
-                    raise ValueError(f"No manipulation found for model {model_type}")
-                mod_list.append(manipulation)
-        else:
-            mod_list.append(self.mod)
+        for model_type in self.models_list:
+            manipulation = None
+            for m, mod in registry:
+                if m == model_type:
+                    manipulation = mod
+                    registry.remove((m, mod))
+                    break
+            if manipulation is None:
+                raise ValueError(f"No manipulation found for model {model_type}")
+            mod_list.append(manipulation)
 
         # EXTRACT FEATURES
 

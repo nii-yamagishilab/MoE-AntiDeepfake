@@ -4,7 +4,7 @@ sys.path.insert(1, os.getcwd())
 
 from pathlib import Path
 from utils.data_utils import load_training_data
-from models.moe_models import MOE_ICASSP, MOE_WIFS
+from models.moe_models import MOE_ICASSP, MOE_WIFS, MOE_WIFS_v2
 from utils.training_utils import train_epoch_compound, valid_epoch_compound
 from utils.utils import *
 from utils.model_utils import *
@@ -133,5 +133,5 @@ if __name__ == '__main__':
         train_moe(ckpts, config)
 
 
-    setup_moe_model(model_name='frozen_5_exp_new_temp.pth',
+    setup_moe_model(model_name='frozen_5_exp_new_.pth',
                     freeze_experts=True)

@@ -16,54 +16,10 @@ warnings.simplefilter(action='ignore', category=UserWarning)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
-def test_moe(checkpoint_moe, ckpts_experts, save_folder, config):
-    Path(save_folder).mkdir(parents=True, exist_ok=True)
-
-    # LOAD EXPERT MODELS
-    experts = []
-    models_list = []
-    model_registry = MODEL_REGISTRY.copy()
-
-    for ckpt in ckpts_experts:
-        model_type = get_model_type_from_ckpt(ckpt)
-        for name, mod in model_registry:
-            if name == model_type:
-                model_class = mod
-                model_registry.remove((name, model_class))
-                break
-        model = model_class(return_emb=True)
-        # model.load_state_dict(torch.load(ckpt, map_location=device)) # loaded with the moe later
-        experts.append(model)
-        models_list.append(model_type)
-
-    # LOAD GATING NETWORK
-    if 'cat' in checkpoint_moe.lower():
-        moe_model = MOE_ICASSP(experts=experts, return_weights=False)
-    else:
-        moe_model = MOE_WIFS(experts=experts, return_weights=False)
-
-    for expert in experts:
-        expert.to(device)
-
-    moe_model = (moe_model).to(device)
-
-    moe_model.load_state_dict(torch.load(checkpoint_moe, map_location=device))
-    print('Model loaded : {}'.format(os.path.basename(checkpoint_moe)))
-
-    # targets = ['A01', 'A02', 'A03', 'A04', 'A07',  'A08', 'A09', 'A10', 'A11', 'A12']
-    # for t in range(len(targets)):
-    #     target = targets[t]
-    #     config['selected_target'] = [target]
-    #     result_path = os.path.join(save_folder, f"{config['selected_target'][0]}", os.path.basename(os.path.splitext(checkpoint_moe)[0]))
-    #     Path(result_path).mkdir(parents=True, exist_ok=True)
-    #     print(f"Result path: {result_path}")
-
-    config['selected_target'] = ['A01', 'A02', 'A03', 'A04', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12']
-    result_path = os.path.join(save_folder, 'ALL', os.path.basename(os.path.splitext(checkpoint_moe)[0]))
+def run_eval(moe_model, models_list, result_path, config):
     Path(result_path).mkdir(parents=True, exist_ok=True)
-    print(f"Result path: {result_path}\n")
+    print(f"Result path: {result_path}")
 
-    # LOAD EVAL DATA
     eval_loader = load_evaluation_data(models_list, config)
 
     with torch.no_grad():
@@ -85,6 +41,51 @@ def test_moe(checkpoint_moe, ckpts_experts, save_folder, config):
     print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n\n")
 
 
+def test_moe(checkpoint_moe, ckpts_experts, save_folder, config):
+    checkpoint_name = os.path.basename(os.path.splitext(checkpoint_moe)[0])
+
+    # LOAD EXPERT MODELS
+    experts = []
+    models_list = []
+    model_registry = MODEL_REGISTRY.copy()
+
+    for ckpt in ckpts_experts:
+        model_type = get_model_type_from_ckpt(ckpt)
+        for name, mod in model_registry:
+            if name == model_type:
+                model_class = mod
+                model_registry.remove((name, model_class))
+                break
+        model = model_class(return_emb=True)
+        experts.append(model)
+        models_list.append(model_type)
+
+    # LOAD GATING NETWORK
+    if 'cat' in checkpoint_moe.lower():
+        moe_model = MOE_ICASSP(experts=experts, return_weights=False)
+    else:
+        moe_model = MOE_WIFS(experts=experts, return_weights=False)
+
+    for expert in experts:
+        expert.to(device)
+
+    moe_model = (moe_model).to(device)
+
+    moe_model.load_state_dict(torch.load(checkpoint_moe, map_location=device))
+    print('Model loaded : {}'.format(os.path.basename(checkpoint_moe)))
+
+    # RUN EVALUATION
+    if config['eval_all']:
+        result_path = os.path.join(save_folder, "ALL", checkpoint_name)
+        run_eval(moe_model, models_list, result_path, config)
+    else:
+        targets = config['selected']
+        for target in targets:
+            config['selected'] = [target]
+            result_path = os.path.join(save_folder, target, checkpoint_name)
+            run_eval(moe_model, models_list, result_path, config)
+
+
 if __name__ == '__main__':
 
     config = read_yaml(Path(__file__).parent.parent / "config" / "args_params.yaml")
@@ -100,13 +101,12 @@ if __name__ == '__main__':
 
     # --------------------- PLEASE DEFINE ----------------------#
 
-    config['sanity_check'] = False
-    if config['sanity_check']:
-        # config['selected_mods'] = ['f0_incons', 'flat_pitch', 'oversmooth', 'min_phase', 'perf_sil']
-        config['selected_mods'] = ['min_phase']
-    config['target_check'] = True
+    config['sanity_check'] = True
+    config['target_check'] = False
 
-    ckpt_moe = os.path.join(ckpt_moe_path, 'frozen_5_exp_new_bestauc.pth')
+    config['eval_all'] = False
+
+    ckpt_moe = os.path.join(ckpt_moe_path, 'best_frozen_5_exp_new.pth')
     ckpts_experts = [
         os.path.join(ckpt_exp_path, 'FLAT_PITCH_MLP.pth'),
         os.path.join(ckpt_exp_path, 'F0_INCONS_MLP.pth'),
@@ -115,10 +115,15 @@ if __name__ == '__main__':
         os.path.join(ckpt_exp_path, 'ENERGY_LCNN.pth')
     ]
 
-    # save_folder = os.path.join(save_path, "SanityCheck")
-    save_folder = os.path.join(save_path, "TargetCheck")
+    save_folder = os.path.join(save_path, "SanityCheck")
+    # save_folder = os.path.join(save_path, "TargetCheck")
 
     # ------------------------- Thanks -------------------------#
+
+    if config['target_check']:
+        config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12']
+    else:
+        config['selected'] = ['flat_pitch', 'f0_incons', 'oversmooth', 'min_phase', 'energy']
 
     print("\nEVALUATION MODE\n")
     print(f"Is sanity check? {config['sanity_check']}")

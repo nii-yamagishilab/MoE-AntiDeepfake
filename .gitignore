@@ -14,6 +14,9 @@ notebooks/0_pitch_mod_analyze.ipynb
 notebooks/0a_analyze_results.ipynb
 notebooks/1a_old_modular_notebook.ipynb
 notebooks/1b_xin_modular_notebook.ipynb
+notebooks/2_analyze_weights.ipynb
+notebooks/2_analyze_weights_v2.ipynb
+notebooks/3_inspect_targets.ipynb
 
 # Ignore specific files
 baseline/config/args_paths.yaml

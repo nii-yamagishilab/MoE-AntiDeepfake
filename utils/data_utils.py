@@ -6,6 +6,10 @@ from torch.utils.data import DataLoader
 from utils.model_utils import *
 from glob import glob
 
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.simplefilter(action='ignore', category=UserWarning)
+
 #--------------------------- Current Dataframes ---------------------------#
 
 def make_df_bonafide(config):
@@ -112,33 +116,11 @@ def load_evaluation_data(models_list, config):
 
         df_all = pd.concat([df_train, df_dev, df_test], ignore_index=True)
 
-        target_df = config['selected_target']
+        target_df = config['selected']
         print(f"Target generator: {target_df}")
 
         dfs = []
         nb_class_samples = 1000
-
-        if 'CUSTOM' in target_df:
-            real_files = glob("/Database/keithito_LJSpeech-1.1/wavs/*.wav")
-            real_sample = random.sample(real_files, nb_class_samples)
-            df_real_1 = pd.DataFrame({"path": real_sample, "label": 0})
-
-            root = "/Database/TIMIT-TTS/CLEAN/single_speaker"
-            exclude = {"fastspeech2", "fastpitch", "talknet"}
-
-            models = [
-                d for d in os.listdir(root)
-                if os.path.isdir(os.path.join(root, d)) and d not in exclude]
-            fake_files = []
-            for model in models:
-                fake_files.extend(
-                    glob(os.path.join(root, model, "**", "*.wav"), recursive=True)
-                )
-            df_fake_1 = pd.DataFrame({"path": fake_files, "label": 1})
-            df_fake_1 = df_fake_1.sample(n=nb_class_samples, random_state=42)
-
-            dfs.extend([df_real_1, df_fake_1])
-            target_df.remove("CUSTOM")
 
         df_real_2 = (
             df_all[df_all[3] == '-']
@@ -169,7 +151,7 @@ def load_evaluation_data(models_list, config):
         labels_eval = list(df_eval['label'])
         eval_set = LoadEvaluationData(list_IDs=file_eval, labels=labels_eval, models_list=models_list, config=config)
 
-    eval_loader = DataLoader(eval_set, batch_size=config['batch_size_moe'], shuffle=False)
+    eval_loader = DataLoader(eval_set, batch_size=config['batch_size_eval'], shuffle=False)
     del eval_set
     print(f'Total no. of eval samples: {len(eval_loader.dataset)}')
 

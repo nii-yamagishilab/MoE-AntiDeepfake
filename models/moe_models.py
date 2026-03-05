@@ -94,8 +94,6 @@ class MOE_WIFS(nn.Module):
         self.num_experts = len(experts)
 
         self.return_weights = return_weights
-        # self.temperature = 1
-        self.temperature = nn.Parameter(torch.ones(self.num_experts))
         self.hidden_dim = 128
         self.proj_dim = 32
 
@@ -114,7 +112,7 @@ class MOE_WIFS(nn.Module):
             nn.TransformerEncoderLayer(d_model=self.proj_dim, nhead=4, dropout=0.1, dim_feedforward=512, batch_first=True, norm_first=True),
         )
         self.linear_out = nn.Linear(self.proj_dim, 1)
-        self.softmax = nn.Softmax(dim=1)
+        # self.softmax = nn.Softmax(dim=1)
 
         if freezing:
             for expert in self.experts:
@@ -133,8 +131,8 @@ class MOE_WIFS(nn.Module):
         processed_embs = torch.stack([proc_emb(emb) for proc_emb, emb in zip(self.proc_emb, embeddings)], dim=1)
         transf_out = self.TransfEnc(processed_embs)
         gating_weights = self.linear_out(transf_out)
-        gating_weights = self.softmax(gating_weights / self.temperature.view(1, -1, 1))
-        
+        # gating_weights = self.softmax(gating_weights)
+
         stacked_logits = torch.stack(outputs, dim=1).unsqueeze(-1)
         weighted_logits = gating_weights * stacked_logits
         combined_output = torch.sum(weighted_logits, dim=1)
@@ -151,7 +149,7 @@ class MOE_WIFS_v2(nn.Module):
 
         self.return_weights = return_weights
         self.hidden_dim = 128
-        self.proj_dim = 34
+        self.proj_dim = 32
 
         self.experts = nn.ModuleList(experts)
         self.num_experts = len(experts)
@@ -170,10 +168,10 @@ class MOE_WIFS_v2(nn.Module):
         ])
 
         self.TransfEnc = nn.Sequential(
-            nn.TransformerEncoderLayer(d_model=self.proj_dim + 2, nhead=4, dropout=0.1, dim_feedforward=512, batch_first=True, norm_first=True),
-            nn.TransformerEncoderLayer(d_model=self.proj_dim + 2, nhead=4, dropout=0.1, dim_feedforward=512, batch_first=True, norm_first=True),
+            nn.TransformerEncoderLayer(d_model=self.proj_dim, nhead=4, dropout=0.1, dim_feedforward=512, batch_first=True, norm_first=True),
+            nn.TransformerEncoderLayer(d_model=self.proj_dim, nhead=4, dropout=0.1, dim_feedforward=512, batch_first=True, norm_first=True),
         )
-        self.linear_out = nn.Linear(self.proj_dim + 2, 1)
+        self.linear_out = nn.Linear(self.proj_dim, 1)
 
         if freezing:
             for expert in self.experts:
@@ -192,17 +190,17 @@ class MOE_WIFS_v2(nn.Module):
         processed_embs = torch.stack([proc_emb(emb) for proc_emb, emb in zip(self.proc_emb, embeddings)], dim=1)
 
         stacked_logits = torch.stack(outputs, dim=1)  # [B, E]
-
         calibrated_logits = (stacked_logits * self.calib_a + self.calib_b)
         calibrated_logits = calibrated_logits.unsqueeze(-1)  # [B, E, 1]
-        abs_logits = torch.abs(calibrated_logits)
-        processed_embs = torch.cat([processed_embs, calibrated_logits, abs_logits], dim=-1)
+
+        # abs_logits = torch.abs(calibrated_logits)
+        # processed_embs = torch.cat([processed_embs, calibrated_logits, abs_logits], dim=-1)
 
         transf_out = self.TransfEnc(processed_embs)
 
         gating_weights = self.linear_out(transf_out)
-        # gating_weights = torch.softmax(gating_weights, dim=1)
-        gating_weights = torch.sigmoid(gating_weights)
+        gating_weights = torch.softmax(gating_weights, dim=1)
+        # gating_weights = torch.sigmoid(gating_weights)
 
         weighted_logits = gating_weights * calibrated_logits
         combined_output = torch.sum(weighted_logits, dim=1)

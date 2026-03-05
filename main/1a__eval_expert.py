@@ -24,6 +24,11 @@ def main(checkpoint_paths, model_classes):
         expert = ModelClass(return_emb=False)
         expert = expert.to(device)
         expert.load_state_dict(torch.load(model_path, map_location=device))
+        print(f"expert loaded: {expert}")
+        # print("-----NOW PRINTING PARAMETERS-----")
+        # print(expert.fc1.weight.data)
+        # print(expert.fc1.bias.data)
+        # print("-----NOW Ending PARAMETERS-----")
         experts.append(expert)
         print(f'Model loaded: {os.path.basename(model_path)}\n')
 
@@ -33,36 +38,31 @@ def main(checkpoint_paths, model_classes):
         name = Path(checkpoint_paths[i]).stem.rsplit('_', 1)[-1]
         model_names.append(name)
 
-    targets = ['A01', 'A02', 'A03', 'A04', 'A07',  'A08', 'A09', 'A10', 'A11', 'A12']
-    # targets = ['A01']
-    for t in range(len(targets)):
-        config['selected_target'] = [targets[t]]
+    # targets = ['A01', 'A02', 'A03', 'A04', 'A07',  'A08', 'A09', 'A10', 'A11', 'A12']
+    # for t in range(len(targets)):
+    #     config['selected_target'] = [targets[t]]
 
-        eval_loader = load_evaluation_data(model_names, config)
+    eval_loader = load_evaluation_data(model_names, config)
 
-        # EVALUATE EXPERT(S)
-        for expert, model_path in zip(experts, checkpoint_paths):
+    for expert, model_path in zip(experts, checkpoint_paths):
 
-            with torch.no_grad():
-                scores, labels = eval_expert(expert, eval_loader, device)
+        with torch.no_grad():
+            scores, labels = eval_expert(expert, eval_loader, device)
 
-            # scores = torch.tensor(scores)
-            # scores = torch.sigmoid(scores)  # logits → probabilities
-            # scores = scores.cpu().numpy()
-            #
-            # labels = np.array(labels)
-            #
-            # print(f"Valid samples: {len(labels)}")
-            # print(f"Num fake: {(labels == 1).sum()}, Num real: {(labels == 0).sum()}")
-            #
-            # fake_scores = scores[labels == 1]
-            # real_scores = scores[labels == 0]
-            #
-            # print(f"Mean score (fake=1): {fake_scores.mean():.6f}")
-            # print(f"Mean score (real=0): {real_scores.mean():.6f}")
+        scores = torch.tensor(scores)
+        scores = scores.cpu().numpy()
+        labels = np.array(labels)
 
-            rocauc, eer = compute_metrics(labels, scores)
-            print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n")
+        print(f"Valid samples: {len(labels)}")
+
+        fake_scores = scores[labels == 1]
+        real_scores = scores[labels == 0]
+
+        print(f"Mean score (fake=1): {fake_scores.mean():.6f}")
+        print(f"Mean score (real=0): {real_scores.mean():.6f}")
+
+        rocauc, eer = compute_metrics(labels, scores)
+        print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n")
 
 
 if __name__ == '__main__':
@@ -76,23 +76,24 @@ if __name__ == '__main__':
 
     # --------------------- PLEASE DEFINE ----------------------#
 
-    config['mod'] = 'energy'
-    config['sanity_check'] = False
-    config['target_check'] = True
+    mod = 'flat_pitch'
+    config['selected_mods'] = [mod]
+    config['sanity_check'] = True
+    config['target_check'] = False
 
-    config['model'] = 'LCNN'
-    model_classes = [LCNN]
+    config['model'] = 'MLP'
+    model_classes = [MLP_Model]
 
     # ------------------------- Thanks -------------------------#
 
     print("\nEVALUATION MODE\n")
-    print(f"Manipulation type: {config['mod']}")
+    print(f"Manipulation type: {mod}")
     print(f"Is sanity check? {config['sanity_check']}")
     print(f"Is target check? {config['target_check']} \n")
 
 
     model_names = [
-        f'{config['mod'].upper()}_{config['model'].upper()}.pth',
+        f'{mod.upper()}_{config['model'].upper()}.pth',
     ]
     checkpoint_paths = [os.path.join(config['save_model_folder'], 'experts', name) for name in model_names]
 

@@ -10,6 +10,10 @@ from sklearn.metrics import roc_curve, auc, balanced_accuracy_score
 from scipy.optimize import brentq
 from scipy.interpolate import interp1d
 
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.simplefilter(action='ignore', category=UserWarning)
+
 
 def compute_metrics_v2(labels, scores):
     fpr, tpr, thresholds = roc_curve(labels, scores)
