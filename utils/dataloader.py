@@ -185,8 +185,11 @@ class LoadTrainData(Dataset):
         self.stft_params = STFTWindowParams()
 
         self.mod = config['mod']
-        self.f0_stats = config['f0_train_stats']
+        f0_params = f"f0_train_stats_{config['train_data']}"
+        self.f0_stats = config[f0_params]
         self.models_list = models_list
+
+        self.gt_f0 = os.path.join(config['rootpath'], "temp_feat", f"f0_{config['train_data']}")
 
     def __len__(self):
         return len(self.list_IDs)
@@ -228,13 +231,14 @@ class LoadTrainData(Dataset):
 
             if mod in ['flat_pitch', 'f0_incons']:
                 filename = os.path.splitext(os.path.basename(path))[0]
-                file = f'/home/smg/v-viola/moe_antideepfake/temp_feat/f0_asv19_no_pad/{filename}.npy'
+                file = os.path.join(self.gt_f0, f'{filename}.npy')
 
                 if not os.path.exists(file):
                     feat = extract_feature(x, mod, self.stft_params)
                     np.save(file, feat)
                 else:
                     feat = np.load(file)
+                    feat = np.nan_to_num(feat, nan=0.0)
 
                 if np.all(feat == 0.0):
                     label = 1 if np.random.rand() < 0.5 else 0
@@ -368,10 +372,12 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         self.win_len = config['win_len']
         self.stft_params = STFTWindowParams()
 
-        self.f0_stats = config['f0_train_stats']
+        f0_params = f"f0_train_stats_{config['train_data']}"
+        self.f0_stats = config[f0_params]
         self.models_list = models_list
 
         self.selected_mods = config['selected']
+        self.gt_f0 = os.path.join(config['rootpath'], "temp_feat", f"f0_{config['test_data']}")
 
     def __len__(self):
         return len(self.list_IDs)
@@ -404,7 +410,7 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         invalid_mods = set()
         for mod in mod_list:
             if mod in ['flat_pitch', 'f0_incons']:
-                file = f'/home/smg/v-viola/moe_antideepfake/temp_feat/f0_asv19_no_pad/{track_name}.npy'
+                file = os.path.join(self.gt_f0, f'{track_name}.npy')
 
                 if not os.path.exists(file):
                     x = load_audio_track(path, trim=True, normalize=True)  # trim=True !
@@ -412,6 +418,7 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
                     np.save(file, feat)
                 else:
                     feat = np.load(file)
+                    feat = np.nan_to_num(feat, nan=0.0)
 
                 if np.all(feat == 0.0):
                     label = -1
@@ -484,8 +491,13 @@ class LoadEvaluationData(Dataset):
         self.win_len = config['win_len']
         self.stft_params = STFTWindowParams()
 
-        self.f0_stats = config['f0_train_stats']
+        self.mod = config['mod']
+
+        f0_params = f"f0_train_stats_{config['train_data']}"
+        self.f0_stats = config[f0_params]
         self.models_list = models_list
+
+        self.gt_f0 = os.path.join(config['rootpath'], "temp_feat", f"f0_{config['test_data']}")
 
     def __len__(self):
         return len(self.list_IDs)
@@ -498,16 +510,19 @@ class LoadEvaluationData(Dataset):
         mod_list = []
         registry = MANIPULATIONS_REGISTRY.copy()
 
-        for model_type in self.models_list:
-            manipulation = None
-            for m, mod in registry:
-                if m == model_type:
-                    manipulation = mod
-                    registry.remove((m, mod))
-                    break
-            if manipulation is None:
-                raise ValueError(f"No manipulation found for model {model_type}")
-            mod_list.append(manipulation)
+        if self.mod == 'all':
+            for model_type in self.models_list:
+                manipulation = None
+                for m, mod in registry:
+                    if m == model_type:
+                        manipulation = mod
+                        registry.remove((m, mod))
+                        break
+                if manipulation is None:
+                    raise ValueError(f"No manipulation found for model {model_type}")
+                mod_list.append(manipulation)
+        else:
+            mod_list.append(self.mod)
 
         # EXTRACT FEATURES
 
@@ -520,7 +535,7 @@ class LoadEvaluationData(Dataset):
         for mod in mod_list:
 
             if mod in ['flat_pitch', 'f0_incons']:
-                file = f'/home/smg/v-viola/moe_antideepfake/temp_feat/f0_asv19_no_pad/{track_name}.npy'
+                file = os.path.join(self.gt_f0, f'{track_name}.npy')
 
                 if not os.path.exists(file):
                     x = load_audio_track(path, trim=True, normalize=True)  # trim=True !
@@ -528,6 +543,7 @@ class LoadEvaluationData(Dataset):
                     np.save(file, feat)
                 else:
                     feat = np.load(file)
+                    feat = np.nan_to_num(feat, nan=0.0)
 
                 if np.all(feat == 0.0):
                     label = -1

@@ -4,7 +4,7 @@ sys.path.insert(1, os.getcwd())
 
 from pathlib import Path
 from utils.data_utils import load_training_data
-from models.moe_models import MOE_ICASSP, MOE_WIFS, MOE_WIFS_v2
+from models.moe_models import *
 from utils.training_utils import train_epoch_compound, valid_epoch_compound
 from utils.utils import *
 from utils.model_utils import *
@@ -41,7 +41,7 @@ def train_moe(ckpts, config):
     if 'cat' in config['model_name'].lower():
         moe_model = MOE_ICASSP(experts=experts, freezing=config['freeze_experts'], return_weights=True)
     else:
-        moe_model = MOE_WIFS(experts=experts, freezing=config['freeze_experts'], return_weights=True)
+        moe_model = MOE_WIFS_v3(experts=experts, freezing=config['freeze_experts'], return_weights=True)
 
     for expert in experts:
         expert.to(device)
@@ -112,7 +112,7 @@ if __name__ == '__main__':
     seed_everything(config['seed'])
 
     def setup_moe_model(model_name, freeze_experts=True):
-        config['train_data'] = 'asv19'
+        config['train_data'] = 'asv5'
         config['merge'] = True
 
         config['freeze_experts'] = freeze_experts
@@ -120,11 +120,11 @@ if __name__ == '__main__':
         ckpts_path = os.path.join(config['rootpath'], 'checkpoints/experts')
 
         ckpts = [
-            os.path.join(ckpts_path, 'FLAT_PITCH_MLP.pth'),
-            os.path.join(ckpts_path, 'F0_INCONS_MLP.pth'),
-            os.path.join(ckpts_path, 'OVERSMOOTH_GRU.pth'),
-            os.path.join(ckpts_path, 'MIN_PHASE_LCNN.pth'),
-            os.path.join(ckpts_path, 'ENERGY_LCNN.pth')
+            os.path.join(ckpts_path, 'ASV5_FLAT_PITCH_MLP.pth'),
+            os.path.join(ckpts_path, 'ASV5_F0_INCONS_MLP.pth'),
+            os.path.join(ckpts_path, 'ASV5_OVERSMOOTH_GRU.pth'),
+            os.path.join(ckpts_path, 'ASV5_MIN_PHASE_LCNN.pth'),
+            os.path.join(ckpts_path, 'ASV5_ENERGY_LCNN.pth')
         ]
 
         print(f"\nModel name: {config['model_name']}")
@@ -133,5 +133,5 @@ if __name__ == '__main__':
         train_moe(ckpts, config)
 
 
-    setup_moe_model(model_name='frozen_5_exp_new_.pth',
+    setup_moe_model(model_name='asv5_frozen_5_exp_linear_comb.pth',
                     freeze_experts=True)

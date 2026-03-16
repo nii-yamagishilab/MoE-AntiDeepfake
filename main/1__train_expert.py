@@ -5,7 +5,7 @@ sys.path.insert(1, os.getcwd())
 from pathlib import Path
 from utils.utils import *
 from utils.data_utils import load_training_data
-from models.small_models import LSTM_Model, BiLSTM_Model, GRU_Model, MLP_Model
+from models.small_models import LSTM_Model, BiLSTM_Model, GRU_Model, MLP_Model, MLP_Model_v2
 from models.lcnn_model import LCNN
 from utils.training_utils import train_epoch_expert, valid_epoch_expert
 
@@ -18,7 +18,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 def select_model(model_name):
 
     if model_name == 'mlp':
-        model = MLP_Model(return_emb=False)
+        model = MLP_Model_v2(return_emb=False)
     elif model_name == 'lstm':
         model = LSTM_Model(return_emb=False)
     elif model_name == 'bilstm':
@@ -93,7 +93,7 @@ if __name__ == '__main__':
 
     # ------------------- PLEASE DEFINE SETTINGS: ------------------ #
 
-    config['train_data'] = 'asv19'
+    config['train_data'] = 'asv5'
     config['merge'] = True
 
     config['model'] = 'lcnn'
@@ -102,7 +102,7 @@ if __name__ == '__main__':
     # ----------------------------- Thanks --------------------------- #
 
 
-    config["model_name"] = f'{config['mod'].upper()}_{config["model"].upper()}.pth'
+    config["model_name"] = f'ASV5_{config['mod'].upper()}_{config["model"].upper()}.pth'
 
     print(f"\nModel type: {config['model']}")
     print(f"Model name: {config['model_name']}")

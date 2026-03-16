@@ -3,7 +3,6 @@ from tqdm import tqdm
 import numpy as np
 import os
 
-
 def train_epoch_expert(train_loader, model, optim, criterion, device):
     running_loss = 0
     num_total = 0.0
@@ -70,7 +69,6 @@ def eval_expert(model, data_loader, device):
     total_removed = 0
     total_seen = 0
 
-    count = 0
     for batch_x, batch_y, utt_id in tqdm(data_loader, total=len(data_loader)):
         if isinstance(batch_x, dict):
             values = list(batch_x.values())
@@ -80,14 +78,20 @@ def eval_expert(model, data_loader, device):
                 batch_x = values
 
         batch_x = torch.stack([x.to(device) for x in batch_x])
-        count += 1
-        if count > 2:
-            break
 
         batch_out = model(batch_x)
-        # batch_out = nn.Softmax(dim=1)(batch_out)
+        # print(batch_out.shape)
+        # print(batch_out)
+        # # print()
+        # # print(calib_probs.shape)
+        # # print(calib_probs[:, 0])
+        # # print()
+        # print(utt_id)
+        # print()
+        # import sys
+        # sys.exit()
+
         batch_score = batch_out.cpu().numpy().ravel()
-        print(f"current batch score: {batch_score}")
         batch_y = np.array(batch_y)
 
         valid_mask = batch_y != -1
@@ -321,6 +325,16 @@ def eval_moe_compound(model, data_loader, save_dir, device):
 
         # ---- MODEL OUTPUTS ----
         batch_probs, gating_probs, weighted_expert_probs, expert_probs = model(batch_x)
+        # print(expert_probs.shape)
+        # print(expert_probs[:, 1])
+        # # print()
+        # # print(calib_probs.shape)
+        # # print(calib_probs[:, 0])
+        # # print()
+        # print(utt_id)
+        # print()
+        # import sys
+        # sys.exit()
 
         batch_probs = batch_probs.detach().cpu().numpy()
         gating_probs = gating_probs.detach().cpu().numpy()

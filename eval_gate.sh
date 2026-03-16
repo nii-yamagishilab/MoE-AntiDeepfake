@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=eval_moe
-#SBATCH --out="txt/E_best_frozen_5_exp_new_f0_incons.out.txt"
+#SBATCH --out="txt/E_moe5_asv5.out.txt"
 #SBATCH --time=3-00:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1

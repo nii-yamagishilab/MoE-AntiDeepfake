@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=train_moe
-#SBATCH --out="txt/T_frozen_5_exp_new_calib_fixed.out.txt"
+#SBATCH --out="txt/T_asv5_frozen_5_exp_linear_comb.out.txt"
 #SBATCH --time=3-00:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1

@@ -80,17 +80,17 @@ def load_training_data(models_list, config):
 
 def load_evaluation_data(models_list, config):
 
-    ds = config['asv19']
+    ds = config[config['test_data']]
 
     if config['sanity_check']:
         print("Test on manipulated data for sanity checking.")
-        df_eval = pd.read_csv(os.path.join(ds['base_path'], ds['eval_file']), sep=' ', header=None)
+        df_eval = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
 
         df_eval = (
-            df_eval[df_eval[4] == 'bonafide']
+            df_eval[df_eval[ds['gen_column']].isin(['-', 'bonafide'])]
             .sample(n=1000, random_state=42)  # subsample for brevity
             .assign(path=lambda df: df[1].apply(
-                lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac")
+                lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac")
             ))
             [['path']]
         )
@@ -103,18 +103,22 @@ def load_evaluation_data(models_list, config):
 
         df_train = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
         df_dev = pd.read_csv(os.path.join(ds['base_path'], ds['dev_file']), sep=' ', header=None)
-        df_test = pd.read_csv(os.path.join(ds['base_path'], ds['eval_file']), sep=' ', header=None)
 
-        df_train['label'] = df_train[4].map({'bonafide': 0, 'spoof': 1})
-        df_train['path'] = df_train[1].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
+        df_train['label'] = df_train[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
+        df_train['path'] = df_train[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
         # df_train = df_train[df_train['label'] == 1]
-        df_dev['label'] = df_dev[4].map({'bonafide': 0, 'spoof': 1})
-        df_dev['path'] = df_dev[1].apply(lambda x: os.path.join(ds['base_path'], ds['dev_dir'], f"{x}.flac"))
-        # df_dev = df_dev[df_dev['label'] == 1]
-        df_test['label'] = df_test[4].map({'bonafide': 0, 'spoof': 1})
-        df_test['path'] = df_test[1].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac"))
 
-        df_all = pd.concat([df_train, df_dev, df_test], ignore_index=True)
+        df_dev['label'] = df_dev[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
+        df_dev['path'] = df_dev[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['dev_dir'], f"{x}.flac"))
+        # df_dev = df_dev[df_dev['label'] == 1]
+
+        if config['test_data'] == 'asv19':
+            df_test = pd.read_csv(os.path.join(ds['base_path'], ds['eval_file']), sep=' ', header=None)
+            df_test['label'] = df_test[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
+            df_test['path'] = df_test[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac"))
+            df_all = pd.concat([df_train, df_dev, df_test], ignore_index=True)
+        else:
+            df_all = pd.concat([df_train, df_dev], ignore_index=True)
 
         target_df = config['selected']
         print(f"Target generator: {target_df}")
@@ -123,13 +127,13 @@ def load_evaluation_data(models_list, config):
         nb_class_samples = 1000
 
         df_real_2 = (
-            df_all[df_all[3] == '-']
+            df_all[df_all[ds['gen_column']].isin(['-', 'bonafide'])]
             .sample(n=nb_class_samples * len(target_df), random_state=42))
         dfs.append(df_real_2)
 
         df_fake_2 = (
-            df_all[df_all[3].isin(target_df)]
-            .groupby(3, group_keys=False)
+            df_all[df_all[ds['gen_column']].isin(target_df)]
+            .groupby(ds['gen_column'], group_keys=False)
             .sample(n=nb_class_samples, random_state=42))
         dfs.append(df_fake_2)
 
@@ -143,8 +147,8 @@ def load_evaluation_data(models_list, config):
         print("Test on full set of deepfake data.")
         df_eval = pd.read_csv(os.path.join(ds['base_path'], ds['eval_file']), sep=' ', header=None)
 
-        df_eval['label'] = df_eval[4].map({'bonafide': 0, 'spoof': 1})
-        df_eval['path'] = df_eval[1].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac"))
+        df_eval['label'] = df_eval[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
+        df_eval['path'] = df_eval[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac"))
         df_eval = df_eval[['path', 'label']]
 
         file_eval = list(df_eval['path'])
@@ -153,7 +157,7 @@ def load_evaluation_data(models_list, config):
 
     eval_loader = DataLoader(eval_set, batch_size=config['batch_size_eval'], shuffle=False)
     del eval_set
-    print(f'Total no. of eval samples: {len(eval_loader.dataset)}')
+    print(f'Total no. of eval samples: {len(eval_loader.dataset)} \n')
 
     return eval_loader
 

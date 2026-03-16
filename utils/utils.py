@@ -26,18 +26,6 @@ def compute_metrics_v2(labels, scores):
 
     return rocauc, eer
 
-def compute_metrics(labels, scores):
-    fpr, tpr, thres = roc_curve(labels, scores)
-    rocauc = auc(fpr, tpr)
-    fnr = 1 - tpr
-    eer = fpr[np.nanargmin(np.absolute(fnr - fpr))]
-
-    # optimal_index = np.argmax(tpr - fpr)
-    # optimal_threshold = thres[optimal_index]
-    # binary_pred = np.where(scores < -0.5, 0, 1)
-    # acc = balanced_accuracy_score(labels, binary_pred)
-
-    return rocauc, eer
 
 def init_weights(module):
     if isinstance(module, nn.Linear):

@@ -112,7 +112,7 @@ class MOE_WIFS(nn.Module):
             nn.TransformerEncoderLayer(d_model=self.proj_dim, nhead=4, dropout=0.1, dim_feedforward=512, batch_first=True, norm_first=True),
         )
         self.linear_out = nn.Linear(self.proj_dim, 1)
-        # self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.Softmax(dim=1)
 
         if freezing:
             for expert in self.experts:
@@ -131,7 +131,7 @@ class MOE_WIFS(nn.Module):
         processed_embs = torch.stack([proc_emb(emb) for proc_emb, emb in zip(self.proc_emb, embeddings)], dim=1)
         transf_out = self.TransfEnc(processed_embs)
         gating_weights = self.linear_out(transf_out)
-        # gating_weights = self.softmax(gating_weights)
+        gating_weights = self.softmax(gating_weights)
 
         stacked_logits = torch.stack(outputs, dim=1).unsqueeze(-1)
         weighted_logits = gating_weights * stacked_logits
@@ -209,3 +209,45 @@ class MOE_WIFS_v2(nn.Module):
             return combined_output, weighted_logits
         else:
             return combined_output, gating_weights, weighted_logits, stacked_logits.squeeze(-1)
+
+
+class MOE_WIFS_v3(nn.Module):
+    def __init__(self, experts, freezing=True, return_weights=False):
+        super(MOE_WIFS_v3, self).__init__()
+
+        self.return_weights = return_weights
+        self.experts = nn.ModuleList(experts)
+        self.num_experts = len(experts)
+
+        self.gate = nn.Linear(self.num_experts, self.num_experts)
+
+        self.calib_a = nn.Parameter(torch.ones(self.num_experts))
+        self.calib_b = nn.Parameter(torch.zeros(self.num_experts))
+
+        if freezing:
+            for expert in self.experts:
+                for p in expert.parameters():
+                    p.requires_grad = False
+
+    def forward(self, x):
+
+        if isinstance(x, list):
+            results = [expert(feat) for expert, feat in zip(self.experts, x)]
+        else:
+            results = [expert(x) for expert in self.experts]
+
+        outputs = [res[0] for res in results]
+
+        stacked_logits = torch.stack(outputs, dim=1).squeeze(-1)
+        calibrated_logits = stacked_logits * self.calib_a + self.calib_b
+
+        gate_logits = self.gate(calibrated_logits)
+        gating_weights = torch.softmax(gate_logits, dim=1)
+
+        weighted_logits = gating_weights * calibrated_logits
+        combined_output = torch.sum(weighted_logits, dim=1, keepdim=True)
+
+        if self.return_weights:
+            return combined_output, gating_weights.unsqueeze(-1)
+        else:
+            return combined_output, gating_weights, weighted_logits, stacked_logits

@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.insert(1, os.getcwd())
 from pathlib import Path
-from models.moe_models import MOE_ICASSP, MOE_WIFS, MOE_WIFS_v2
+from models.moe_models import *
 from utils.data_utils import load_evaluation_data
 from utils.training_utils import eval_moe_compound
 from utils.utils import *
@@ -18,7 +18,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def run_eval(moe_model, models_list, result_path, config):
     Path(result_path).mkdir(parents=True, exist_ok=True)
-    print(f"Result path: {result_path}")
+    print(f"Result path: {result_path} \n")
 
     eval_loader = load_evaluation_data(models_list, config)
 
@@ -37,7 +37,7 @@ def run_eval(moe_model, models_list, result_path, config):
     print(f"Mean score (fake=1): {fake_scores.mean():.6f}")
     print(f"Mean score (real=0): {real_scores.mean():.6f}")
 
-    rocauc, eer = compute_metrics(labels, scores)
+    rocauc, eer = compute_metrics_v2(labels, scores)
     print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n\n")
 
 
@@ -64,7 +64,7 @@ def test_moe(checkpoint_moe, ckpts_experts, save_folder, config):
     if 'cat' in checkpoint_moe.lower():
         moe_model = MOE_ICASSP(experts=experts, return_weights=False)
     else:
-        moe_model = MOE_WIFS(experts=experts, return_weights=False)
+        moe_model = MOE_WIFS_v2(experts=experts, return_weights=False)
 
     for expert in experts:
         expert.to(device)
@@ -101,29 +101,49 @@ if __name__ == '__main__':
 
     # --------------------- PLEASE DEFINE ----------------------#
 
-    config['sanity_check'] = True
-    config['target_check'] = False
-
     config['eval_all'] = False
 
-    ckpt_moe = os.path.join(ckpt_moe_path, 'best_frozen_5_exp_new.pth')
-    ckpts_experts = [
-        os.path.join(ckpt_exp_path, 'FLAT_PITCH_MLP.pth'),
-        os.path.join(ckpt_exp_path, 'F0_INCONS_MLP.pth'),
-        os.path.join(ckpt_exp_path, 'OVERSMOOTH_GRU.pth'),
-        os.path.join(ckpt_exp_path, 'MIN_PHASE_LCNN.pth'),
-        os.path.join(ckpt_exp_path, 'ENERGY_LCNN.pth')
-    ]
+    config['sanity_check'] = False
+    config['target_check'] = True
 
-    save_folder = os.path.join(save_path, "SanityCheck")
-    # save_folder = os.path.join(save_path, "TargetCheck")
+    config['train_data'] = 'asv5'
+    config['test_data'] = 'asv5'
+
+    # ckpt_moe = os.path.join(ckpt_moe_path, 'frozen_5_exp_new_calib_fixed.pth')   # best model trained on asv19
+    ckpt_moe = os.path.join(ckpt_moe_path, 'asv5_frozen_5_exp_calib.pth')      # counterpart trained on asv5
 
     # ------------------------- Thanks -------------------------#
 
+    if config['train_data'] == 'asv19':
+        ckpts_experts = [
+            os.path.join(ckpt_exp_path, 'FLAT_PITCH_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'F0_INCONS_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'OVERSMOOTH_GRU.pth'),
+            os.path.join(ckpt_exp_path, 'MIN_PHASE_LCNN.pth'),
+            os.path.join(ckpt_exp_path, 'ENERGY_LCNN.pth')
+        ]
+    else:
+        ckpts_experts = [
+            os.path.join(ckpt_exp_path, 'ASV5_FLAT_PITCH_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'ASV5_F0_INCONS_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'ASV5_OVERSMOOTH_GRU.pth'),
+            os.path.join(ckpt_exp_path, 'ASV5_MIN_PHASE_LCNN.pth'),
+            os.path.join(ckpt_exp_path, 'ASV5_ENERGY_LCNN.pth')
+        ]
+
     if config['target_check']:
-        config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12']
+        if config['test_data'] == 'asv19':
+            config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12']
+        elif config['test_data'] == 'asv5':
+            config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12', 'A14']
+        else:
+            print("Test dataset not supported. \n")
+            sys.exit()
+        save_folder = os.path.join(save_path, config['test_data'], "TargetCheck")
+
     else:
         config['selected'] = ['flat_pitch', 'f0_incons', 'oversmooth', 'min_phase', 'energy']
+        save_folder = os.path.join(save_path, config['test_data'], "SanityCheck")
 
     print("\nEVALUATION MODE\n")
     print(f"Is sanity check? {config['sanity_check']}")

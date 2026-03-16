@@ -8,6 +8,7 @@ asv5:
   train_file: "protocols/ASVspoof5.train.tsv"
   dev_file: "protocols/ASVspoof5.dev.track_1.tsv"
   filter_column: 8
+  gen_column: 7
   path_column: 1
   train_dir: "flac_T"
   dev_dir: "flac_D"
@@ -18,6 +19,7 @@ asv19:
   dev_file: "LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.dev.trl.txt"
   eval_file: "LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt"
   filter_column: 4
+  gen_column: 3
   path_column: 1
   train_dir: "LA/ASVspoof2019_LA_train/flac"
   dev_dir: "LA/ASVspoof2019_LA_dev/flac"
@@ -29,8 +31,6 @@ add2022_path: '/Database/ADD2022'
 add2022_label_path: '/home/smg/v-viola/moe_antideepfake/baseline/config'
 InTheWild_path: '/Database/Fraunhofer_Deepfake_in_wild'
 InTheWild_wav_folder: 'wav16k'
-
-
 
 MLAAD_path: '/Database/MLAAD/v5/fake'
 timit_tts_path: '/Database/TIMIT-TTS'
