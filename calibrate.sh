@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=calib_exp
-#SBATCH --out="txt/C_scale_on_calib_set_all.out.txt"
+#SBATCH --out="txt/C_exp19_asv19.out.txt"
 #SBATCH --time=3-00:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1
