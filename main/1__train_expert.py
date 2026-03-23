@@ -1,39 +1,67 @@
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 import sys
 import os
 sys.path.insert(1, os.getcwd())
-
 from pathlib import Path
 from utils.utils import *
 from utils.data_utils import load_training_data
 from models.small_models import LSTM_Model, BiLSTM_Model, GRU_Model, MLP_Model, MLP_Model_v2
 from models.lcnn_model import LCNN
 from utils.training_utils import train_epoch_expert, valid_epoch_expert
-
-import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def select_model(model_name):
-
-    if model_name == 'mlp':
-        model = MLP_Model_v2(return_emb=False)
+    if model_name == 'mlp' and config['mod'] == 'flat_pitch':
+        model = MLP_Model(return_emb=True)
+    elif model_name == 'mlp' and config['mod'] == 'f0_incons':
+        model = MLP_Model_v2(return_emb=True)
     elif model_name == 'lstm':
-        model = LSTM_Model(return_emb=False)
+        model = LSTM_Model(return_emb=True)
     elif model_name == 'bilstm':
-        model = BiLSTM_Model(return_emb=False)
+        model = BiLSTM_Model(return_emb=True)
     elif model_name == 'gru':
-        model = GRU_Model(return_emb=False)
+        model = GRU_Model(return_emb=True)
     elif model_name == 'lcnn':
-        model = LCNN(return_emb=False)
+        model = LCNN(return_emb=True)
     else:
         print('Model name not recognized.')
         sys.exit()
 
     model = (model).to(device)
-
     return model
+
+class Supervised_ContrastiveLoss(nn.Module):
+    def __init__(self, temperature=0.07):
+        super().__init__()
+        self.temperature = temperature
+
+    def forward(self, features, labels):
+        device = features.device
+        B = features.shape[0]
+        features = F.normalize(features, dim=1)
+
+        # similarity matrix
+        sim = torch.matmul(features, features.T) / self.temperature
+        # remove self-comparisons
+        mask = torch.eye(B, dtype=torch.bool).to(device)
+        sim.masked_fill_(mask, -1e9)
+        # create positive mask
+        labels = labels.contiguous().view(-1, 1)
+        pos_mask = torch.eq(labels, labels.T).float().to(device)
+        pos_mask = pos_mask.masked_fill(mask, 0)
+        # log-softmax
+        log_prob = F.log_softmax(sim, dim=1)
+        # compute loss
+        loss = -(pos_mask * log_prob).sum(1) / pos_mask.sum(1)
+
+        return loss.mean()
 
 def main(config):
     config['save_model_folder'] = os.path.join(config['save_model_folder'], 'experts')
@@ -48,7 +76,9 @@ def main(config):
     # TRAINING & VALIDATION
     optimizer = torch.optim.AdamW(model.parameters(), lr=float(config['lr']), weight_decay=0.0001)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10)
+
     criterion = nn.BCEWithLogitsLoss().to(device)
+    # supconloss = Supervised_ContrastiveLoss()
 
     early_stopping = 0
     best_loss = 100
@@ -93,16 +123,20 @@ if __name__ == '__main__':
 
     # ------------------- PLEASE DEFINE SETTINGS: ------------------ #
 
-    config['train_data'] = 'asv5'
+    config['train_data'] = 'asv19'
     config['merge'] = True
 
     config['model'] = 'lcnn'
-    config['mod'] = 'energy'
+    config['mod'] = 'min_phase'
 
     # ----------------------------- Thanks --------------------------- #
 
+    if config['train_data'] == 'asv5':
+        config['reduce_set'] = True
+    else:
+        config['reduce_set'] = False
 
-    config["model_name"] = f'ASV5_{config['mod'].upper()}_{config["model"].upper()}.pth'
+    config["model_name"] = f'{config['mod'].upper()}_{config["model"].upper()}_ASV19.pth'
 
     print(f"\nModel type: {config['model']}")
     print(f"Model name: {config['model_name']}")

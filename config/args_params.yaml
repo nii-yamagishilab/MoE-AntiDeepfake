@@ -8,7 +8,7 @@ mod: 'all'
 batch_size: 128
 batch_size_eval: 64
 
-num_epochs: 50
+num_epochs: 100
 early_stopping: 20
 lr: 1e-3
 lr_moe: 1e-3

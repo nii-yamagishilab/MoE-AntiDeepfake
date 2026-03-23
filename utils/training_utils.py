@@ -3,6 +3,53 @@ from tqdm import tqdm
 import numpy as np
 import os
 
+
+def expert_loop(data_loader, expert, device, return_id=False):
+    expert.eval()
+
+    logits_list = []
+    label_list = []
+    batch_k_list = []
+    total_removed = 0
+    total_seen = 0
+
+    with torch.no_grad():
+        for batch_x, batch_y, batch_k in tqdm(data_loader, total=len(data_loader)):
+            if isinstance(batch_x, dict):
+                values = list(batch_x.values())
+                if len(values) == 1:
+                    batch_x = values[0]
+                else:
+                    batch_x = values
+
+            batch_x = torch.stack([x.to(device) for x in batch_x])
+            batch_logits = expert(batch_x)
+
+            batch_logits = batch_logits.cpu().numpy().ravel()
+            batch_y = np.array(batch_y)
+
+            valid_mask = batch_y != -1
+            total_removed += np.sum(~valid_mask)
+            total_seen += len(batch_y)
+            if not np.any(valid_mask):
+                continue
+
+            logits_list.extend(batch_logits[valid_mask].tolist())
+            label_list.extend(batch_y[valid_mask].tolist())
+            batch_k_list.extend(np.array(batch_k)[valid_mask].tolist())
+
+    print(f"Removed {total_removed} corrupted samples out of {total_seen} total "
+          f"({100 * total_removed / total_seen:.2f}%).")
+
+    if return_id:
+        return logits_list, label_list, batch_k_list
+    else:
+        return logits_list, label_list
+
+
+def smooth_labels(y, eps=0.1):
+    return y * (1 - eps) + 0.5 * eps
+
 def train_epoch_expert(train_loader, model, optim, criterion, device):
     running_loss = 0
     num_total = 0.0
@@ -16,16 +63,22 @@ def train_epoch_expert(train_loader, model, optim, criterion, device):
             else:
                 batch_x = values
 
-        batch_size = batch_x.size(0)
-        num_total += batch_size
-
         batch_x = batch_x.to(device)
         batch_y = batch_y.float().to(device)
 
-        batch_out = model(batch_x)
+        # batch_y = smooth_labels(batch_y, eps=0.1)
 
-        batch_loss = criterion(batch_out, batch_y)
+        batch_out, batch_emb = model(batch_x)
+
+        loss_bce = criterion(batch_out, batch_y)
+        # loss_supcon = supconloss(batch_emb, batch_y.long())
+
+        # batch_loss = loss_bce + (0.5 * loss_supcon)
+        batch_loss = loss_bce
+
+        batch_size = batch_x.size(0)
         running_loss += (batch_loss.item() * batch_size)
+        num_total += batch_size
 
         optim.zero_grad()
         batch_loss.backward()
@@ -48,14 +101,19 @@ def valid_epoch_expert(data_loader, model, criterion, device):
             else:
                 batch_x = values
 
-        batch_size = batch_x.size(0)
-        num_total += batch_size
         batch_x = batch_x.to(device)
         batch_y = batch_y.float().to(device)
-        batch_out = model(batch_x)
+        batch_out, batch_emb = model(batch_x)
 
-        batch_loss = criterion(batch_out, batch_y)
+        loss_bce = criterion(batch_out, batch_y)
+        # loss_supcon = supconloss(batch_emb, batch_y.long())
+
+        # batch_loss = loss_bce + (0.5 * loss_supcon)
+        batch_loss = loss_bce
+
+        batch_size = batch_x.size(0)
         running_loss += (batch_loss.item() * batch_size)
+        num_total += batch_size
 
     running_loss /= num_total
     return running_loss

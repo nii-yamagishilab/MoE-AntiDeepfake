@@ -85,7 +85,6 @@ class MOE_ICASSP(nn.Module):
         else:  # return all for eval analysis
             return combined_output, gating_weights, weights_x_probs, expert_probs
 
-
 class MOE_WIFS(nn.Module):
     def __init__(self, experts, freezing=True, return_weights=False):
         super(MOE_WIFS, self).__init__()
@@ -143,9 +142,9 @@ class MOE_WIFS(nn.Module):
             return combined_output, gating_weights, weighted_logits, stacked_logits.squeeze(-1)
 
 
-class MOE_WIFS_v2(nn.Module):
+class MOE_Way1(nn.Module):
     def __init__(self, experts, freezing=True, return_weights=False):
-        super(MOE_WIFS_v2, self).__init__()
+        super(MOE_Way1, self).__init__()
 
         self.return_weights = return_weights
         self.hidden_dim = 128
@@ -210,10 +209,9 @@ class MOE_WIFS_v2(nn.Module):
         else:
             return combined_output, gating_weights, weighted_logits, stacked_logits.squeeze(-1)
 
-
-class MOE_WIFS_v3(nn.Module):
+class MOE_Way2(nn.Module):
     def __init__(self, experts, freezing=True, return_weights=False):
-        super(MOE_WIFS_v3, self).__init__()
+        super(MOE_Way2, self).__init__()
 
         self.return_weights = return_weights
         self.experts = nn.ModuleList(experts)
@@ -251,3 +249,41 @@ class MOE_WIFS_v3(nn.Module):
             return combined_output, gating_weights.unsqueeze(-1)
         else:
             return combined_output, gating_weights, weighted_logits, stacked_logits
+
+# class MOE_Way3_v1(nn.Module):
+#     def __init__(self, experts, freezing=True, return_weights=False):
+#         super(MOE_Way3_v1, self).__init__()
+#
+#         self.return_weights = return_weights
+#         self.experts = nn.ModuleList(experts)
+#         self.num_experts = len(experts)
+#
+#         self.calib_a = nn.Parameter(torch.ones(self.num_experts))
+#         self.calib_b = nn.Parameter(torch.zeros(self.num_experts))
+#         self.weights = nn.Parameter(torch.ones(self.num_experts))
+#
+#         if freezing:
+#             for expert in self.experts:
+#                 for p in expert.parameters():
+#                     p.requires_grad = False
+#
+#     def forward(self, x):
+#
+#         if isinstance(x, list):
+#             results = [expert(feat) for expert, feat in zip(self.experts, x)]
+#         else:
+#             results = [expert(x) for expert in self.experts]
+#
+#         outputs = [res[0] for res in results]
+#         stacked_logits = torch.stack(outputs, dim=1).squeeze(-1)
+#
+#         calibrated_logits = stacked_logits * self.calib_a + self.calib_b
+#         gating_weights = torch.softmax(self.weights, dim=0).unsqueeze(0)
+#
+#         weighted_logits = gating_weights * calibrated_logits
+#         combined_output = torch.sum(weighted_logits, dim=1, keepdim=True)
+#
+#         if self.return_weights:
+#             return combined_output, gating_weights.unsqueeze(-1)
+#         else:
+#             return combined_output, gating_weights, weighted_logits, stacked_logits

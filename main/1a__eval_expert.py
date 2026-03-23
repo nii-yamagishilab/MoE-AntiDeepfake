@@ -1,3 +1,6 @@
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 import sys
 import os
 sys.path.insert(1, os.getcwd())
@@ -9,9 +12,6 @@ from models.lcnn_model import LCNN
 from utils.training_utils import eval_expert
 from utils.utils import *
 import torch
-
-import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -35,7 +35,16 @@ def main(checkpoint_paths, model_classes):
 
     targets = config['selected']
     for target in targets:
+
         config['selected'] = [target]
+
+        if config['target_check']:
+            config['save_path'] = os.path.join(config['save_folder'], target)
+        else:
+            config['save_path'] = config['save_folder']
+
+        Path(config['save_path']).mkdir(parents=True, exist_ok=True)
+        print(f"Result path: {config['save_path']}")
 
         eval_loader = load_evaluation_data(model_names, config)
 
@@ -50,14 +59,16 @@ def main(checkpoint_paths, model_classes):
 
             print(f"Valid samples: {len(labels)}")
 
-            fake_scores = scores[labels == 1]
-            real_scores = scores[labels == 0]
-
-            print(f"Mean score (fake=1): {fake_scores.mean():.6f}")
-            print(f"Mean score (real=0): {real_scores.mean():.6f}")
+            # fake_scores = scores[labels == 1]
+            # real_scores = scores[labels == 0]
+            # print(f"Mean score (fake=1): {fake_scores.mean():.6f}")
+            # print(f"Mean score (real=0): {real_scores.mean():.6f}")
 
             rocauc, eer = compute_metrics_v2(labels, scores)
             print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n")
+
+            np.save(f"{config['save_path']}/scores.npy", scores)
+            np.save(f"{config['save_path']}/labels.npy", labels)
 
 
 if __name__ == '__main__':
@@ -71,15 +82,19 @@ if __name__ == '__main__':
 
     # --------------------- PLEASE DEFINE ----------------------#
 
-    config['mod'] = 'flat_pitch'
-    config['sanity_check'] = False
-    config['target_check'] = True
+    config['mod'] = 'f0_incons'
+    config['sanity_check'] = True
+    config['target_check'] = False
 
-    config['train_data'] = 'asv5'
+    config['train_data'] = 'asv19'
     config['test_data'] = 'asv19'
 
     config['model'] = 'MLP'
-    model_classes = [MLP_Model]
+    model_classes = [MLP_Model_v2]
+
+    model_names = [
+        f'{config['mod'].upper()}_{config['model'].upper()}.pth',
+    ]
 
     # ------------------------- Thanks -------------------------#
 
@@ -89,22 +104,30 @@ if __name__ == '__main__':
         elif config['test_data'] == 'asv5':
             config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12', 'A14']
             # config['selected'] = ['A14']
+        elif config['test_data'] == 'wf':
+            config['selected'] = ["tts_ljspeech", "ljspeech_full_band_melgan", "ljspeech_hifiGAN", "ljspeech_melgan",
+                                  "ljspeech_melgan_large", "ljspeech_multi_band_melgan", "ljspeech_parallel_wavegan",
+                                  "ljspeech_waveglow", "jsut_multi_band_melgan", "jsut_parallel_wavegan"]
         else:
             print("Test dataset not supported. \n")
             sys.exit()
     else:
-        config['selected'] = ['flat_pitch', 'f0_incons', 'oversmooth', 'min_phase', 'energy']
+        config['selected'] = [config['mod']]
 
     print("\nEVALUATION MODE\n")
     print(f"Manipulation type: {config['mod']}")
     print(f"Is sanity check? {config['sanity_check']}")
     print(f"Is target check? {config['target_check']} \n")
 
-
-    model_names = [
-        f'ASV5_{config['mod'].upper()}_{config['model'].upper()}.pth',
-    ]
     checkpoint_paths = [os.path.join(config['save_model_folder'], 'experts', name) for name in model_names]
+    config['save_folder'] = os.path.join(config['save_results_folder'],
+                                       'experts',
+                                       config['train_data'],
+                                       config['mod'])
+    if config['target_check']:
+        config['save_folder'] = os.path.join(config['save_folder'], 'TargetCheck')
+    else:
+        config['save_folder'] = os.path.join(config['save_folder'], 'SanityCheck')
 
     main(checkpoint_paths, model_classes)
 

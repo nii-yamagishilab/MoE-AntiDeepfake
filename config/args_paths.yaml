@@ -25,6 +25,22 @@ asv19:
   dev_dir: "LA/ASVspoof2019_LA_dev/flac"
   eval_dir: "LA/ASVspoof2019_LA_eval/flac"
 
+wf:
+  base_path: '/Database/WaveFake'
+  protocols: 'protocol_full.txt'
+  filter_column: 5
+  gen_column: 4
+  path_column: 1
+  file_dir: 'wav_16k'
+
+mlaad:
+  fake_path: '/Database/MLAAD/v5/fake'
+  real_path: '/Database/M-AILABS'
+  protocols: 'protocol_full.txt'
+  filter_column: 5
+  gen_column: 4
+  path_column: 1
+  file_dir: 'wav_16k'
 
 for_path: '/Database/Fake-or-Real-Dataset/for-original'
 add2022_path: '/Database/ADD2022'

@@ -1,3 +1,7 @@
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.simplefilter(action='ignore', category=UserWarning)
+
 import sys
 import os
 sys.path.insert(1, os.getcwd())
@@ -8,10 +12,6 @@ from models.moe_models import *
 from utils.training_utils import train_epoch_compound, valid_epoch_compound
 from utils.utils import *
 from utils.model_utils import *
-
-import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
-warnings.simplefilter(action='ignore', category=UserWarning)
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

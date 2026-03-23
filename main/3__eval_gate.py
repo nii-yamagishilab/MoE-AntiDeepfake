@@ -1,3 +1,7 @@
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.simplefilter(action='ignore', category=UserWarning)
+
 import sys
 import os
 sys.path.insert(1, os.getcwd())
@@ -7,10 +11,6 @@ from utils.data_utils import load_evaluation_data
 from utils.training_utils import eval_moe_compound
 from utils.utils import *
 from utils.model_utils import MODEL_REGISTRY, get_model_type_from_ckpt
-
-import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
-warnings.simplefilter(action='ignore', category=UserWarning)
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -64,7 +64,7 @@ def test_moe(checkpoint_moe, ckpts_experts, save_folder, config):
     if 'cat' in checkpoint_moe.lower():
         moe_model = MOE_ICASSP(experts=experts, return_weights=False)
     else:
-        moe_model = MOE_WIFS_v2(experts=experts, return_weights=False)
+        moe_model = MOE_Way2(experts=experts, return_weights=False)
 
     for expert in experts:
         expert.to(device)
@@ -110,7 +110,8 @@ if __name__ == '__main__':
     config['test_data'] = 'asv5'
 
     # ckpt_moe = os.path.join(ckpt_moe_path, 'frozen_5_exp_new_calib_fixed.pth')   # best model trained on asv19
-    ckpt_moe = os.path.join(ckpt_moe_path, 'asv5_frozen_5_exp_calib.pth')      # counterpart trained on asv5
+    # ckpt_moe = os.path.join(ckpt_moe_path, 'asv5_frozen_5_exp_calib.pth')      # counterpart trained on asv5
+    ckpt_moe = os.path.join(ckpt_moe_path, 'asv5_frozen_5_exp_linear_comb.pth')
 
     # ------------------------- Thanks -------------------------#
 
@@ -136,6 +137,21 @@ if __name__ == '__main__':
             config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12']
         elif config['test_data'] == 'asv5':
             config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12', 'A14']
+        elif config['test_data'] == 'wf':
+            config['selected'] = ["tts_ljspeech", "ljspeech_full_band_melgan", "ljspeech_hifiGAN", "ljspeech_melgan",
+                                  "ljspeech_melgan_large", "ljspeech_multi_band_melgan", "ljspeech_parallel_wavegan",
+                                  "ljspeech_waveglow"]  #, "jsut_multi_band_melgan", "jsut_parallel_wavegan"]
+        elif config['test_data'] == 'mlaad':
+            config['selected'] = ['Mars5', 'MatchaTTS', 'MeloTTS', 'Metavoice-1B', 'OpenVoiceV2', 'WhisperSpeech', 'e2-tts',
+                                  'f5-tts', 'facebook_mms-tts-eng', 'griffin_lim', 'microsoft_speecht5_tts', 'optispeech',
+                                  'parler_tts_large_v1', 'parler_tts_mini_v0.1', 'parler_tts_mini_v1', 'suno_bark-small',
+                                  'suno_bark', 'tts_models_en_blizzard2013_capacitron-t2-c50', 'tts_models_en_ek1_tacotron2',
+                                  'tts_models_en_jenny_jenny', 'tts_models_en_ljspeech_fast_pitch', 'tts_models_en_ljspeech_glow-tts',
+                                  'tts_models_en_ljspeech_neural_hmm', 'tts_models_en_ljspeech_overflow', 'tts_models_en_ljspeech_speedy-speech',
+                                  'tts_models_en_ljspeech_tacotron2-DCA', 'tts_models_en_ljspeech_tacotron2-DDC', 'tts_models_en_ljspeech_tacotron2-DDC_ph',
+                                  'tts_models_en_ljspeech_vits--neon', 'tts_models_en_ljspeech_vits', 'tts_models_en_multi-dataset_tortoise-v2',
+                                  'tts_models_en_sam_tacotron-DDC', 'tts_models_multilingual_multi-dataset_bark', 'tts_models_multilingual_multi-dataset_xtts_v1.1',
+                                  'tts_models_multilingual_multi-dataset_xtts_v2', 'vixTTS']
         else:
             print("Test dataset not supported. \n")
             sys.exit()

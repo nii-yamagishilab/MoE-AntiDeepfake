@@ -2,7 +2,6 @@ import os
 from models.small_models import *
 from models.lcnn_model import LCNN
 
-
                             # ----------------------------------------#
                             # WARNING: THE ORDERING LOGIC MATTERS !!! #
                             # ----------------------------------------#
