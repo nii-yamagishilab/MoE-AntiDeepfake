@@ -104,7 +104,7 @@ def load_evaluation_data(models_list, config):
         file_eval = list(df_eval['path'])
         eval_set = LoadEvalData_MoE_SanityCheck(list_IDs=file_eval, models_list=models_list, config=config)
 
-    elif config['target_check']:
+    else:
         print("Test on target deepfake data.")
 
         if config['test_data'] == 'mlaad':
@@ -202,20 +202,38 @@ def load_evaluation_data(models_list, config):
         labels_eval = list(df_eval['label'])
         eval_set = LoadEvaluationData(list_IDs=file_eval, labels=labels_eval, models_list=models_list, config=config)
 
-    # calibration data for ensemble
-    else:
+    eval_loader = DataLoader(eval_set, batch_size=config['batch_size_eval'], shuffle=False)
+    del eval_set
+    print(f'Total no. of samples: {len(eval_loader.dataset)} \n')
+
+    return eval_loader
+
+def load_calibration_data(mod, config):
         print("Loading calibration data.")
+
+        ds = config[config['test_data']]
         nb_class_samples = 500
 
         if config['test_data'] == 'asv19':
-            calib_targets = ['-', 'A01', 'A03', 'A04']
+            if not config['pool']:  # TODO find better fits
+                if mod in ['flat_pitch', 'oversmooth']:
+                    target = ['-', 'A01']
+                elif mod in ['f0_incons', 'energy']:
+                    target = ['-', 'A04']
+                else:
+                    target = ['-', 'A03']
+            else:
+                target = ['-', 'A01', 'A03', 'A04']
         else:
-            calib_targets = ['bonafide', 'A01', 'A04', 'A08']
+            if not config['pool']:
+                target = ['bonafide', 'A01']  # TODO
+            else:
+                target = ['bonafide', 'A01', 'A04', 'A08']
 
-        nb_targets = len(calib_targets) - 1
+        nb_targets = len(target) - 1
 
         df = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
-        df = df[df[ds['gen_column']].isin(calib_targets)]
+        df = df[df[ds['gen_column']].isin(target)]
         df['label'] = df[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
         df['path'] = df[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
 
@@ -234,14 +252,14 @@ def load_evaluation_data(models_list, config):
 
         file_eval = list(df_eval['path'])
         labels_eval = list(df_eval['label'])
+        models_list = None
         eval_set = LoadEvaluationData(list_IDs=file_eval, labels=labels_eval, models_list=models_list, config=config)
 
-    eval_loader = DataLoader(eval_set, batch_size=config['batch_size_eval'], shuffle=False)
-    del eval_set
-    print(f'Total no. of samples: {len(eval_loader.dataset)} \n')
+        eval_loader = DataLoader(eval_set, batch_size=config['batch_size_eval'], shuffle=False)
+        del eval_set
+        print(f'Total no. of samples: {len(eval_loader.dataset)} \n')
 
-    return eval_loader
-
+        return eval_loader
 
 #--------------------------- Baseline Dataframes ---------------------------#
 

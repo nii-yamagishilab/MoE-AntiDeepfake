@@ -7,7 +7,7 @@ sys.path.insert(1, os.getcwd())
 from pathlib import Path
 from utils.utils import *
 from utils.data_utils import load_training_data
-from models.small_models import LSTM_Model, BiLSTM_Model, GRU_Model, MLP_Model, MLP_Model_v2
+from models.small_models import *
 from models.lcnn_model import LCNN
 from utils.training_utils import train_epoch_expert, valid_epoch_expert
 import torch
@@ -19,13 +19,15 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def select_model(model_name):
     if model_name == 'mlp' and config['mod'] == 'flat_pitch':
-        model = MLP_Model(return_emb=True)
+        model = MLP_F0_Incons(return_emb=True)
     elif model_name == 'mlp' and config['mod'] == 'f0_incons':
-        model = MLP_Model_v2(return_emb=True)
-    elif model_name == 'lstm':
-        model = LSTM_Model(return_emb=True)
-    elif model_name == 'bilstm':
-        model = BiLSTM_Model(return_emb=True)
+        model = MLP_F0_Incons(return_emb=True)
+    elif model_name == 'mlp' and config['mod'] == 'energy':
+        model = MLP_Energy(return_emb=True)
+    elif model_name == 'mlp' and config['mod'] == 'oversmooth':
+        model = MLP_Smooth(return_emb=True)
+    elif model_name == 'cnn':
+        model = CNN_1D_Model(return_emb=True)
     elif model_name == 'gru':
         model = GRU_Model(return_emb=True)
     elif model_name == 'lcnn':
@@ -126,8 +128,8 @@ if __name__ == '__main__':
     config['train_data'] = 'asv19'
     config['merge'] = True
 
-    config['model'] = 'lcnn'
-    config['mod'] = 'min_phase'
+    config['model'] = 'mlp'
+    config['mod'] = 'flat_pitch'
 
     # ----------------------------- Thanks --------------------------- #
 
@@ -136,7 +138,7 @@ if __name__ == '__main__':
     else:
         config['reduce_set'] = False
 
-    config["model_name"] = f'{config['mod'].upper()}_{config["model"].upper()}_ASV19.pth'
+    config["model_name"] = f'{config['mod'].upper()}_{config["model"].upper()}_v2.pth'
 
     print(f"\nModel type: {config['model']}")
     print(f"Model name: {config['model_name']}")

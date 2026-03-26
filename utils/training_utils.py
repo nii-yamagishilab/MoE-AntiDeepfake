@@ -166,7 +166,7 @@ def eval_expert(model, data_loader, device):
           f"out of {total_seen} total "
           f"({100 * total_removed / total_seen:.2f}%).")
 
-    return score_list, label_list
+    return fname_list, score_list, label_list
 
 
 def train_epoch_compound(train_loader, model, optim, losses, config, device):

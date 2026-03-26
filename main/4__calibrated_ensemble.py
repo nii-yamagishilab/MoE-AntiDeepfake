@@ -6,7 +6,7 @@ import sys
 import os
 sys.path.insert(1, os.getcwd())
 
-from utils.data_utils import load_training_data, load_evaluation_data
+from utils.data_utils import load_calibration_data, load_evaluation_data
 from pathlib import Path
 from utils.training_utils import expert_loop
 from utils.utils import *
@@ -53,19 +53,24 @@ def calibrate_expert(calib_loader, expert, a, b):
 
     return kde_H1, kde_H0
 
-def run_calibration(experts, val_loader, calib_loader):
+def run_calibration(experts, models_list, config):
     # Scale logits, fit KDEs for each expert
 
-    mods = ['flat_pitch', 'f0_incons', 'oversmooth', 'min_phase', 'energy']  # mind the order!!!
+    config['pool'] = True
+    calib_loader = load_calibration_data(models_list, config)
+    config['pool'] = False
 
     all_a = []
     all_b = []
     all_kde_H1 = []
     all_kde_H0 = []
+    mods = ['flat_pitch', 'f0_incons', 'oversmooth', 'min_phase', 'energy']  # mind the order!!!
 
     for i, expert in enumerate(experts):
         print(f"CALIBRATING EXPERT {i+1} / {len(experts)}...")
         expert.to(device)
+
+        val_loader = load_calibration_data(mods[i], config)
 
         val_loader.dataset.mod = mods[i]
         calib_loader.dataset.mod = mods[i]
@@ -94,7 +99,6 @@ def compute_log_lr(eval_loader, expert, a, b, kde_H1, kde_H0):
     log_p_H0 = kde_H0.score_samples(probs)
 
     return log_p_H1 - log_p_H0, label_list, ids, logits, probs
-
 
 def run_evaluation(experts, eval_loader, all_a, all_b, all_H1, all_H0, config):
 
@@ -193,12 +197,13 @@ def test_ensemble(ckpts_experts, config):
         models_list.append(model_type)
 
     # Load necessary data
-    config['merge'] = True
-    _, val_loader = load_training_data(models_list, config)
-    calib_loader = load_evaluation_data(models_list, config)
-    config['target_check'] = True
+    # config['merge'] = True
+    # _, val_loader = load_training_data(models_list, config)
+    # calib_loader = load_evaluation_data(models_list, config)
+    # config['target_check'] = True
 
     # Calibrate & evaluate
+    Path(config['save_folder']).mkdir(parents=True, exist_ok=True)
     files = {name: f"{config['save_folder']}/{name}{'.pkl' if 'H' in name else '.npy'}"
              for name in ['all_a', 'all_b', 'all_H1', 'all_H0']}
 
@@ -208,11 +213,13 @@ def test_ensemble(ckpts_experts, config):
         all_H1 = joblib.load(files['all_H1'])
         all_H0 = joblib.load(files['all_H0'])
     else:
-        all_a, all_b, all_H1, all_H0 = run_calibration(experts, calib_loader, calib_loader)
+        all_a, all_b, all_H1, all_H0 = run_calibration(experts, models_list, config)
         np.save(files['all_a'], all_a)
         np.save(files['all_b'], all_b)
         joblib.dump(all_H1, files['all_H1'])
         joblib.dump(all_H0, files['all_H0'])
+
+    config['target_check'] = True
 
     if config['eval_overall']:
         config['save_path'] = os.path.join(config['save_folder'], "ALL")
@@ -264,11 +271,11 @@ if __name__ == '__main__':
             os.path.join(ckpt_exp_path, 'F0_INCONS_MLP.pth'),
             os.path.join(ckpt_exp_path, 'OVERSMOOTH_GRU.pth'),
             os.path.join(ckpt_exp_path, 'MIN_PHASE_LCNN.pth'),
-            os.path.join(ckpt_exp_path, 'ENERGY_LCNN.pth')
+            os.path.join(ckpt_exp_path, 'ENERGY_MLP.pth')
         ]
     else:
         ckpts_experts = [
-            os.path.join(ckpt_exp_path, 'FLAT_PIxTCH_MLP_ASV5.pth'),
+            os.path.join(ckpt_exp_path, 'FLAT_PITCH_MLP_ASV5.pth'),
             os.path.join(ckpt_exp_path, 'F0_INCONS_MLP_ASV5.pth'),
             os.path.join(ckpt_exp_path, 'OVERSMOOTH_GRU_ASV5.pth'),
             os.path.join(ckpt_exp_path, 'MIN_PHASE_LCNN_ASV5.pth'),
@@ -284,7 +291,8 @@ if __name__ == '__main__':
         sys.exit()
     config['save_folder'] = os.path.join(save_path,
                                          config['test_data'],
-                                         f'experts_trained_on_{config["train_data"]}')
+                                         f'experts_trained_on_{config["train_data"]}',
+                                         'scale_on_calibration_v2')
     config['target_check'] = False
     config['sanity_check'] = False
     if config['train_data'] == 'asv5':

@@ -5,6 +5,7 @@ from utils.make_artifacts import *
 from scipy.ndimage import gaussian_filter
 from utils.model_utils import MANIPULATIONS_REGISTRY
 
+
 import warnings
 warnings.simplefilter(action='ignore', category=UserWarning)
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -117,13 +118,70 @@ def extract_proxy_scalars_F0(feat):
     return np.array([f0_std, f0_ac_decay, df0_std, df0_mean_abs, df0_max_abs,
                      df0_p95, df0_outlier_ratio, ddf0_std, dyn_ratio, curv_ratio])
 
+def extract_proxy_scalars_energy(spec_db, num_bands=8, drop_threshold_ratio=0.2):
+    freq_bins, n_frames = spec_db.shape
+    features = []
+
+    E_total = spec_db.sum(axis=0)  # shape: [n_frames]
+    features.append(E_total.mean())
+    features.append(E_total.std())
+    features.append(E_total.max() - E_total.min())
+
+    band_size = freq_bins // num_bands
+    for b in range(num_bands):
+        start = b * band_size
+        end = start + band_size if b < num_bands - 1 else freq_bins
+        E_band = spec_db[start:end, :].sum(axis=0)
+        features.append(E_band.mean())
+        features.append(E_band.std())
+
+    delta_E = np.diff(E_total)
+    features.append(delta_E.mean())
+    features.append(delta_E.std())
+    features.append(delta_E.max() - delta_E.min())
+
+    # Use max-energy as reference to detect relative drops
+    threshold = E_total.max() * drop_threshold_ratio
+    drop_frames = np.where(E_total < threshold)[0]
+    features.append(len(drop_frames))   # how often the signal dips abnormally low
+
+    if len(drop_frames) > 0:
+        # Split into contiguous regions to measure duration of each drop
+        drops = np.split(drop_frames, np.where(np.diff(drop_frames) != 1)[0]+1)
+        avg_drop_len = np.mean([len(d) for d in drops]) # average duration of energy holes
+    else:
+        avg_drop_len = 0
+    features.append(avg_drop_len)
+
+    return np.array(features, dtype=np.float32)
+
 def extract_proxy_scalars_LSF(feat, lsf_order=21):
     feats = []
-    for i in np.arange(lsf_order):
-        lsp_var = np.var(feat[i])
-        feats.append(lsp_var)
 
-    return np.array(feats)
+    spacing = np.diff(feat, axis=1)  # [T x (order-1)]
+    feats.append(spacing.mean())
+    feats.append(spacing.std())
+    feats.append(spacing.min())
+    feats.append(spacing.var())
+
+    spacing_dt = np.diff(spacing, axis=0)
+    feats.append(np.abs(spacing_dt).mean())
+    feats.append(np.abs(spacing_dt).std())
+
+    delta_t = np.diff(feat, axis=0)
+    feats.append(np.abs(delta_t).mean())
+    feats.append(np.abs(delta_t).std())
+    feats.append(np.abs(delta_t).max())
+
+    delta2_t = feat[2:] - 2*feat[1:-1] + feat[:-2]
+    feats.append(np.abs(delta2_t).mean())
+    feats.append(np.abs(delta2_t).std())
+
+    var_per_coeff = feat.var(axis=0)
+    feats.append(var_per_coeff.mean())
+    feats.append(var_per_coeff.std())
+
+    return np.array(feats, dtype=np.float32)
 
 
 #--------------------------------------- WRAPPERS --------------------------------------#
@@ -140,13 +198,14 @@ def extract_feature(x, mod, stft_params):
         feat = np.nan_to_num(feat, nan=0.0)
 
     elif mod == 'oversmooth':
-        feat = lsf_extraction(x, stft_params=stft_params, lsf_order=20)
+        feat = lsf_extraction(x.numpy(), stft_params=stft_params, lsf_order=20)
 
     elif mod == 'energy':
         feat = spec_extraction(x, stft_params)
+        # feat = energy_extraction(x, stft_params)
 
     elif mod == 'min_phase':
-        feat = phase_extraction(x, key='unwrapped', stft_params=stft_params)
+        feat = phase_extraction(x.numpy(), key='unwrapped', stft_params=stft_params)
 
     else:
         feat = None
@@ -164,9 +223,10 @@ def apply_manipulation(feat, mod, stft_params):
 
     elif mod == 'energy':
         feat_mod = spec_manipulation(feat, stft_params)  # here feat is the raw wav
+        # feat_mod = energy_manipulation(feat, stft_params)  # here feat is the raw wav
 
     elif mod == 'min_phase':
-        feat_mod = phase_manipulation(feat, key='unwrapped', stft_params=stft_params)  # here feat is the raw wav
+        feat_mod = phase_manipulation(feat.numpy(), key='unwrapped', stft_params=stft_params)  # here feat is the raw wav
 
     else:
         feat_mod = None
@@ -185,8 +245,9 @@ class LoadTrainData(Dataset):
         self.stft_params = STFTWindowParams()
 
         self.mod = config['mod']
-        f0_params = f"f0_train_stats_{config['train_data']}"
-        self.f0_stats = config[f0_params]
+        # f0_params = f"f0_train_stats_{config['train_data']}"
+        # self.f0_stats = config[f0_params]
+        self.config = config
         self.models_list = models_list
 
         self.gt_f0 = os.path.join(config['rootpath'], "temp_feat", f"f0_{config['train_data']}")
@@ -196,6 +257,16 @@ class LoadTrainData(Dataset):
 
     def __getitem__(self, idx):
         path = self.list_IDs[idx]
+
+        source_dataset = path.strip('/').split('/')[1]
+        if source_dataset == 'ASVspoof2019':
+            self.f0_stats = self.config["f0_train_stats_asv19"]
+            self.energy_stats = self.config["energy_train_stats_asv19"]
+        elif source_dataset == 'ASVspoof5':
+            self.f0_stats = self.config["f0_train_stats_asv5"]
+        else:
+            print(f"Not recognized: {source_dataset}. No available normalization data.")
+
         mod_list = []
         label = 0
         mod_gt = -1
@@ -248,7 +319,7 @@ class LoadTrainData(Dataset):
 
             else:
                 x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=False)
-                feat = extract_feature(x.numpy(), mod, self.stft_params)
+                feat = extract_feature(x, mod, self.stft_params)
 
             feat_dict[mod] = feat
 
@@ -265,7 +336,7 @@ class LoadTrainData(Dataset):
                 if idx % 2 == 0:
 
                     if mod in ['min_phase', 'energy']:
-                        feat_mod = apply_manipulation(x.numpy(), mod=mod, stft_params=self.stft_params)
+                        feat_mod = apply_manipulation(x, mod=mod, stft_params=self.stft_params)
                     else:
                         feat_mod = apply_manipulation(feat, mod=mod, stft_params=self.stft_params)
 
@@ -292,6 +363,17 @@ class LoadTrainData(Dataset):
                         feat = torch.tensor(feat, dtype=torch.float32)
                         feat = (feat - mean) / (std + 1e-8)
 
+                elif mod == 'energy':
+                    feat = extract_proxy_scalars_energy(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
+                    mean = torch.tensor(self.energy_stats['mean_energy'])
+                    std = torch.tensor(self.energy_stats['std_energy'])
+
+                    feat = torch.tensor(feat, dtype=torch.float32)
+                    feat = (feat - mean) / (std + 1e-8)
+
+                elif mod == 'oversmooth':
+                    feat = extract_proxy_scalars_LSF(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
+
                 feat = torch.tensor(feat, dtype=torch.float32)
 
             else:
@@ -317,7 +399,7 @@ class LoadTrainData(Dataset):
                     feat = feat_dict[mod]
 
                     if mod in ['min_phase', 'energy']:
-                        feat_mod = apply_manipulation(x.numpy(), mod=mod, stft_params=self.stft_params)
+                        feat_mod = apply_manipulation(x, mod=mod, stft_params=self.stft_params)
                     else:
                         feat_mod = apply_manipulation(feat, mod=mod, stft_params=self.stft_params)
 
@@ -353,10 +435,16 @@ class LoadTrainData(Dataset):
                         feat = torch.tensor(feat, dtype=torch.float32)
                         feat = (feat - mean) / (std + 1e-8)
 
-                # elif mod == 'oversmooth':
-                #     feat = extract_proxy_scalars_LSF(feat.numpy() if isinstance(feat, torch.Tensor) else feat, lsf_order=feat.shape[1])
-
-                    feat = torch.tensor(feat, dtype=torch.float32)
+                elif mod == 'energy':
+                    feat = extract_proxy_scalars_energy(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
+                    mean = torch.tensor(self.f0_stats['mean_energy'])
+                    std = torch.tensor(self.f0_stats['std_energy'])
+                    if np.all(feat == 0.0):
+                        label = 1 if np.random.rand() < 0.5 else 0
+                        feat = torch.zeros(10, dtype=torch.float32)
+                    else:
+                        feat = torch.tensor(feat, dtype=torch.float32)
+                        feat = (feat - mean) / (std + 1e-8)
 
                 else:
                     feat = torch.tensor(feat, dtype=torch.float32)
@@ -372,9 +460,10 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         self.win_len = config['win_len']
         self.stft_params = STFTWindowParams()
 
-        f0_params = f"f0_train_stats_{config['train_data']}"
-        self.f0_stats = config[f0_params]
+        # f0_params = f"f0_train_stats_{config['train_data']}"
+        # self.f0_stats = config[f0_params]
         self.models_list = models_list
+        self.config = config
 
         self.selected_mods = config['selected']
         self.gt_f0 = os.path.join(config['rootpath'], "temp_feat", f"f0_{config['test_data']}")
@@ -384,6 +473,15 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
 
     def __getitem__(self, idx):
         path = self.list_IDs[idx]
+
+        source_dataset = path.strip('/').split('/')[1]
+        if source_dataset == 'ASVspoof2019':
+            self.f0_stats = self.config["f0_train_stats_asv19"]
+        elif source_dataset == 'ASVspoof5':
+            self.f0_stats = self.config["f0_train_stats_asv5"]
+        else:
+            print(f"Not recognized: {source_dataset}. No available normalization data.")
+
         mod_list = []
         label = 0
         track_name = os.path.splitext(os.path.basename(path))[0]
@@ -493,9 +591,10 @@ class LoadEvaluationData(Dataset):
 
         self.mod = config['mod']
 
-        f0_params = f"f0_train_stats_{config['train_data']}"
-        self.f0_stats = config[f0_params]
+        # f0_params = f"f0_train_stats_{config['train_data']}"
+        # self.f0_stats = config[f0_params]
         self.models_list = models_list
+        self.config = config
 
         self.gt_f0 = os.path.join(config['rootpath'], "temp_feat", f"f0_{config['test_data']}")
 
@@ -504,6 +603,16 @@ class LoadEvaluationData(Dataset):
 
     def __getitem__(self, idx):
         path = self.list_IDs[idx]
+
+        source_dataset = path.strip('/').split('/')[1]
+        if source_dataset == 'ASVspoof2019':
+            self.f0_stats = self.config["f0_train_stats_asv19"]
+            self.energy_stats = self.config["energy_train_stats_asv19"]
+        elif source_dataset == 'ASVspoof5':
+            self.f0_stats = self.config["f0_train_stats_asv5"]
+        else:
+            print(f"Not recognized: {source_dataset}. No available normalization data.")
+
         label = self.labels[idx]
         track_name = os.path.splitext(os.path.basename(path))[0]
 
@@ -586,6 +695,13 @@ class LoadEvaluationData(Dataset):
                     feat = (feat - mean) / (std + 1e-8)
 
                 feat = torch.tensor(feat, dtype=torch.float32)
+
+            elif mod == 'energy':
+                feat = extract_proxy_scalars_energy(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
+                mean = torch.tensor(self.energy_stats['mean_energy'])
+                std = torch.tensor(self.energy_stats['std_energy'])
+                feat = torch.tensor(feat, dtype=torch.float32)
+                feat = (feat - mean) / (std + 1e-8)
 
             else:
                 feat = torch.tensor(feat, dtype=torch.float32)

@@ -196,13 +196,19 @@ def spec_extraction(y, stft_params):
         hop_length=stft_params.hop_size,
         power=2
     )
-
     spec = spec_transform(torch.Tensor(y).unsqueeze(0))
     spec = spec.squeeze(0)
+    feat = apply_db(spec)
 
-    spec_db = apply_db(spec)
+    return feat
 
-    return spec_db
+def energy_extraction(y, stft_params):
+    frames = y.unfold(0, stft_params.fft_size, stft_params.hop_size)
+    energy = (frames ** 2).mean(dim=1)
+    # delta = torch.diff(energy, prepend=energy[:1])
+    # feat = torch.stack([energy, delta], dim=0)
+
+    return energy
 
 
 
@@ -324,7 +330,6 @@ def flatten_f0(f0_traj, strength=0.5, dyn_strength=0.0):
         )
 
     return f0_mod
-
 
 def apply_f0_mod(f0_traj, mod='f0_incons', hop_s=0.016):
     if mod == 'f0_incons':
@@ -481,13 +486,10 @@ def stft_to_min_phase(y, sr, win_length=512, hop_length=256, n_fft=None):
 #___________________________Energy Inconsistency_________________________#
 
 def spec_manipulation(y, stft_params):
-    """
-    Compute a spectrogram from waveform y and zero out a time region directly in the waveform.
-    """
     y = torch.tensor(y).float()
     n_samples = y.shape[-1] if y.dim() > 1 else y.shape[0]
 
-    # Select time frames to zero
+    # Select time frames
     spec_dummy = torchaudio.transforms.Spectrogram(
         n_fft=stft_params.fft_size,
         hop_length=stft_params.hop_size,
@@ -497,16 +499,10 @@ def spec_manipulation(y, stft_params):
     # width = random.randint(10, 50)
     width = random.randint(6, 30)
 
-    # if random.random() < 0.9:
-    #     # 90% at the end
-    #     start_idx = max(n_time - width - random.randint(0, 5), 0)
-    # else:
     start_idx = random.randint(0, max(n_time - width, 0))
-
     end_idx = start_idx + width
     end_idx = min(end_idx, n_time)
 
-    # Convert frame indices to sample indices
     hop_length = stft_params.hop_size
     fft_size = stft_params.fft_size
 
@@ -515,7 +511,6 @@ def spec_manipulation(y, stft_params):
 
     y_zeroed = y.clone()
 
-    # y_zeroed[start_sample:end_sample] = 0.0
     attenuation = random.uniform(0.0, math.sqrt(0.5))
     y_zeroed[start_sample:end_sample] *= attenuation
 
@@ -525,9 +520,31 @@ def spec_manipulation(y, stft_params):
         power=2
     )
     spec = spec_transform(y_zeroed.unsqueeze(0)).squeeze(0)
-    spec_db = apply_db(spec)
+    feat = apply_db(spec)
 
-    return spec_db
+    return feat
+
+def energy_manipulation(y, stft_params):
+    y = torch.tensor(y).float()
+
+    frames = y.unfold(0, stft_params.fft_size, stft_params.hop_size)
+    energy = (frames ** 2).mean(dim=1)
+
+    n_time = energy.shape[0]
+    width = random.randint(6, 30)
+
+    start_idx = random.randint(0, max(n_time - width, 0))
+    end_idx = min(start_idx + width, n_time)
+
+    energy_mod = energy.clone()
+
+    attenuation = random.uniform(0.0, 0.7)
+    energy_mod[start_idx:end_idx] *= attenuation
+
+    # delta = torch.diff(energy_mod, prepend=energy_mod[:1])
+    # feat = torch.stack([energy_mod, delta], dim=0)
+
+    return energy_mod
 
 
 
