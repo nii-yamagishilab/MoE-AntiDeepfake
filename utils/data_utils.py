@@ -215,7 +215,7 @@ def load_calibration_data(mod, config):
         nb_class_samples = 500
 
         if config['test_data'] == 'asv19':
-            if not config['pool']:  # TODO find better fits
+            if not config['pool']:
                 if mod in ['flat_pitch', 'oversmooth']:
                     target = ['-', 'A01']
                 elif mod in ['f0_incons', 'energy']:
@@ -226,16 +226,28 @@ def load_calibration_data(mod, config):
                 target = ['-', 'A01', 'A03', 'A04']
         else:
             if not config['pool']:
-                target = ['bonafide', 'A01']  # TODO
+                if mod in ['energy']:
+                    target = ['bonafide', 'A09']
+                elif mod in ['flat_pitch', 'f0_incons']:
+                    target = ['bonafide', 'A02']
+                else:
+                    target = ['bonafide', 'A07']
             else:
-                target = ['bonafide', 'A01', 'A04', 'A08']
+                target = ['bonafide', 'A02', 'A07', 'A09']
 
         nb_targets = len(target) - 1
 
-        df = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
-        df = df[df[ds['gen_column']].isin(target)]
-        df['label'] = df[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
-        df['path'] = df[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
+        df_t = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
+        df_t = df_t[df_t[ds['gen_column']].isin(target)]
+        df_t['label'] = df_t[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
+        df_t['path'] = df_t[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
+
+        df_d = pd.read_csv(os.path.join(ds['base_path'], ds['dev_file']), sep=' ', header=None)
+        df_d = df_d[df_d[ds['gen_column']].isin(target)]
+        df_d['label'] = df_d[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
+        df_d['path'] = df_d[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['dev_dir'], f"{x}.flac"))
+
+        df = pd.concat([df_t, df_d], ignore_index=True)
 
         dfs = []
         df_real = (

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=calib_exp
-#SBATCH --out="txt/C_exp5_asv5.out.txt"
+#SBATCH --out="txt/C_exp19_asv5_probs.out.txt"
 #SBATCH --time=3-00:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1

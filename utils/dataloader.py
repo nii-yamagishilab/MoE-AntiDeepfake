@@ -245,8 +245,6 @@ class LoadTrainData(Dataset):
         self.stft_params = STFTWindowParams()
 
         self.mod = config['mod']
-        # f0_params = f"f0_train_stats_{config['train_data']}"
-        # self.f0_stats = config[f0_params]
         self.config = config
         self.models_list = models_list
 
@@ -258,24 +256,21 @@ class LoadTrainData(Dataset):
     def __getitem__(self, idx):
         path = self.list_IDs[idx]
 
-        source_dataset = path.strip('/').split('/')[1]
-        if source_dataset == 'ASVspoof2019':
-            self.f0_stats = self.config["f0_train_stats_asv19"]
-            self.energy_stats = self.config["energy_train_stats_asv19"]
-        elif source_dataset == 'ASVspoof5':
-            self.f0_stats = self.config["f0_train_stats_asv5"]
+        if self.config['train_data'] == 'asv19':
+            self.train_stats = self.config['train_stats_asv19']
+        elif self.config['train_data'] == 'asv5':
+            self.train_stats = self.config["train_stats_asv5"]
         else:
-            print(f"Not recognized: {source_dataset}. No available normalization data.")
+            print(f"Not recognized: {self.config['train_data']}. No available normalization data.")
 
         mod_list = []
         label = 0
         mod_gt = -1
 
-        registry = MANIPULATIONS_REGISTRY.copy()
-
         # find the manipulation corresponding to each expert in the list
         # assume registry is a list of (model, manipulation)
         if self.mod == 'all':
+            registry = MANIPULATIONS_REGISTRY.copy()
             for model_type in self.models_list:
                 manipulation = None
                 for m, mod in registry:
@@ -340,7 +335,7 @@ class LoadTrainData(Dataset):
                     else:
                         feat_mod = apply_manipulation(feat, mod=mod, stft_params=self.stft_params)
 
-                    feat = feat_mod
+                    feat = torch.tensor(feat_mod, dtype=torch.float32)
                     label = 1
 
                 # Extract proxy features when needed
@@ -350,11 +345,11 @@ class LoadTrainData(Dataset):
                     feat = extract_proxy_scalars_F0(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
 
                     if mod == 'f0_incons':
-                        mean = torch.tensor(self.f0_stats['mean_incons'])
-                        std = torch.tensor(self.f0_stats['std_incons'])
+                        mean = torch.tensor(self.train_stats['mean_incons'])
+                        std = torch.tensor(self.train_stats['std_incons'])
                     else:
-                        mean = torch.tensor(self.f0_stats['mean_flat'])
-                        std = torch.tensor(self.f0_stats['std_flat'])
+                        mean = torch.tensor(self.train_stats['mean_flat'])
+                        std = torch.tensor(self.train_stats['std_flat'])
 
                     if np.all(feat == 0.0):
                         label = 1 if np.random.rand() < 0.5 else 0
@@ -365,16 +360,17 @@ class LoadTrainData(Dataset):
 
                 elif mod == 'energy':
                     feat = extract_proxy_scalars_energy(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
-                    mean = torch.tensor(self.energy_stats['mean_energy'])
-                    std = torch.tensor(self.energy_stats['std_energy'])
-
+                    mean = torch.tensor(self.train_stats['mean_energy'])
+                    std = torch.tensor(self.train_stats['std_energy'])
                     feat = torch.tensor(feat, dtype=torch.float32)
                     feat = (feat - mean) / (std + 1e-8)
 
                 elif mod == 'oversmooth':
                     feat = extract_proxy_scalars_LSF(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
-
-                feat = torch.tensor(feat, dtype=torch.float32)
+                    feat = torch.tensor(feat, dtype=torch.float32)
+                    mean = torch.tensor(self.train_stats['mean_smooth'])
+                    std = torch.tensor(self.train_stats['std_smooth'])
+                    feat = (feat - mean) / (std + 1e-8)
 
             else:
                 feat = torch.tensor(np.zeros(10), dtype=torch.float32)
@@ -422,11 +418,11 @@ class LoadTrainData(Dataset):
                     feat = extract_proxy_scalars_F0(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
 
                     if mod == 'f0_incons':
-                        mean = torch.tensor(self.f0_stats['mean_incons'])
-                        std = torch.tensor(self.f0_stats['std_incons'])
+                        mean = torch.tensor(self.train_stats['mean_incons'])
+                        std = torch.tensor(self.train_stats['std_incons'])
                     else:
-                        mean = torch.tensor(self.f0_stats['mean_flat'])
-                        std = torch.tensor(self.f0_stats['std_flat'])
+                        mean = torch.tensor(self.train_stats['mean_flat'])
+                        std = torch.tensor(self.train_stats['std_flat'])
 
                     if np.all(feat == 0.0):
                         label = 1 if np.random.rand() < 0.5 else 0
@@ -434,17 +430,21 @@ class LoadTrainData(Dataset):
                     else:
                         feat = torch.tensor(feat, dtype=torch.float32)
                         feat = (feat - mean) / (std + 1e-8)
+
 
                 elif mod == 'energy':
                     feat = extract_proxy_scalars_energy(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
-                    mean = torch.tensor(self.f0_stats['mean_energy'])
-                    std = torch.tensor(self.f0_stats['std_energy'])
-                    if np.all(feat == 0.0):
-                        label = 1 if np.random.rand() < 0.5 else 0
-                        feat = torch.zeros(10, dtype=torch.float32)
-                    else:
-                        feat = torch.tensor(feat, dtype=torch.float32)
-                        feat = (feat - mean) / (std + 1e-8)
+                    mean = torch.tensor(self.train_stats['mean_energy'])
+                    std = torch.tensor(self.train_stats['std_energy'])
+                    feat = torch.tensor(feat, dtype=torch.float32)
+                    feat = (feat - mean) / (std + 1e-8)
+
+                elif mod == 'oversmooth':
+                    feat = extract_proxy_scalars_LSF(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
+                    feat = torch.tensor(feat, dtype=torch.float32)
+                    mean = torch.tensor(self.train_stats['mean_smooth'])
+                    std = torch.tensor(self.train_stats['std_smooth'])
+                    feat = (feat - mean) / (std + 1e-8)
 
                 else:
                     feat = torch.tensor(feat, dtype=torch.float32)
@@ -460,8 +460,6 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         self.win_len = config['win_len']
         self.stft_params = STFTWindowParams()
 
-        # f0_params = f"f0_train_stats_{config['train_data']}"
-        # self.f0_stats = config[f0_params]
         self.models_list = models_list
         self.config = config
 
@@ -474,13 +472,12 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
     def __getitem__(self, idx):
         path = self.list_IDs[idx]
 
-        source_dataset = path.strip('/').split('/')[1]
-        if source_dataset == 'ASVspoof2019':
-            self.f0_stats = self.config["f0_train_stats_asv19"]
-        elif source_dataset == 'ASVspoof5':
-            self.f0_stats = self.config["f0_train_stats_asv5"]
+        if self.config['train_data'] == 'asv19':
+            self.train_stats = self.config["train_stats_asv19"]
+        elif self.config['train_data'] == 'asv5':
+            self.train_stats = self.config["train_stats_asv5"]
         else:
-            print(f"Not recognized: {source_dataset}. No available normalization data.")
+            print(f"Not recognized: {self.config['train_data']}. No available normalization data.")
 
         mod_list = []
         label = 0
@@ -558,11 +555,11 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
                 feat_new = extract_proxy_scalars_F0(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
 
                 if mod == 'f0_incons':
-                    mean = torch.tensor(self.f0_stats['mean_incons'])
-                    std = torch.tensor(self.f0_stats['std_incons'])
+                    mean = torch.tensor(self.train_stats['mean_incons'])
+                    std = torch.tensor(self.train_stats['std_incons'])
                 else:
-                    mean = torch.tensor(self.f0_stats['mean_flat'])
-                    std = torch.tensor(self.f0_stats['std_flat'])
+                    mean = torch.tensor(self.train_stats['mean_flat'])
+                    std = torch.tensor(self.train_stats['std_flat'])
 
                 if np.all(feat_new == 0.0):
                     label = -1
@@ -590,9 +587,8 @@ class LoadEvaluationData(Dataset):
         self.stft_params = STFTWindowParams()
 
         self.mod = config['mod']
+        self.train_domain = config['train_data']
 
-        # f0_params = f"f0_train_stats_{config['train_data']}"
-        # self.f0_stats = config[f0_params]
         self.models_list = models_list
         self.config = config
 
@@ -604,22 +600,19 @@ class LoadEvaluationData(Dataset):
     def __getitem__(self, idx):
         path = self.list_IDs[idx]
 
-        source_dataset = path.strip('/').split('/')[1]
-        if source_dataset == 'ASVspoof2019':
-            self.f0_stats = self.config["f0_train_stats_asv19"]
-            self.energy_stats = self.config["energy_train_stats_asv19"]
-        elif source_dataset == 'ASVspoof5':
-            self.f0_stats = self.config["f0_train_stats_asv5"]
+        if self.train_domain == 'asv19':
+            self.train_stats = self.config["train_stats_asv19"]
+        elif self.train_domain == 'asv5':
+            self.train_stats = self.config["train_stats_asv5"]
         else:
-            print(f"Not recognized: {source_dataset}. No available normalization data.")
+            print(f"Not recognized: {self.train_domain}. No available normalization data.")
 
         label = self.labels[idx]
         track_name = os.path.splitext(os.path.basename(path))[0]
 
         mod_list = []
-        registry = MANIPULATIONS_REGISTRY.copy()
-
-        if self.mod == 'all':
+        if self.mod == 'all':  # for MoE
+            registry = MANIPULATIONS_REGISTRY.copy()
             for model_type in self.models_list:
                 manipulation = None
                 for m, mod in registry:
@@ -630,7 +623,7 @@ class LoadEvaluationData(Dataset):
                 if manipulation is None:
                     raise ValueError(f"No manipulation found for model {model_type}")
                 mod_list.append(manipulation)
-        else:
+        else:  # individual exp / ensemble
             mod_list.append(self.mod)
 
         # EXTRACT FEATURES
@@ -662,7 +655,7 @@ class LoadEvaluationData(Dataset):
 
             else:
                 x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=True)
-                feat = extract_feature(x.numpy(), mod, self.stft_params)
+                feat = extract_feature(x, mod, self.stft_params)
 
             feat_dict[mod] = feat
 
@@ -681,11 +674,11 @@ class LoadEvaluationData(Dataset):
                 feat = extract_proxy_scalars_F0(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
 
                 if mod == 'f0_incons':
-                    mean = torch.tensor(self.f0_stats['mean_incons'])
-                    std = torch.tensor(self.f0_stats['std_incons'])
+                    mean = torch.tensor(self.train_stats['mean_incons'])
+                    std = torch.tensor(self.train_stats['std_incons'])
                 else:
-                    mean = torch.tensor(self.f0_stats['mean_flat'])
-                    std = torch.tensor(self.f0_stats['std_flat'])
+                    mean = torch.tensor(self.train_stats['mean_flat'])
+                    std = torch.tensor(self.train_stats['std_flat'])
 
                 if np.all(feat == 0.0):
                     label = -1
@@ -698,9 +691,16 @@ class LoadEvaluationData(Dataset):
 
             elif mod == 'energy':
                 feat = extract_proxy_scalars_energy(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
-                mean = torch.tensor(self.energy_stats['mean_energy'])
-                std = torch.tensor(self.energy_stats['std_energy'])
+                mean = torch.tensor(self.train_stats['mean_energy'])
+                std = torch.tensor(self.train_stats['std_energy'])
                 feat = torch.tensor(feat, dtype=torch.float32)
+                feat = (feat - mean) / (std + 1e-8)
+
+            elif mod == 'oversmooth':
+                feat = extract_proxy_scalars_LSF(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
+                feat = torch.tensor(feat, dtype=torch.float32)
+                mean = torch.tensor(self.train_stats['mean_smooth'])
+                std = torch.tensor(self.train_stats['std_smooth'])
                 feat = (feat - mean) / (std + 1e-8)
 
             else:

@@ -15,6 +15,29 @@ import torch
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+def run_eval(model_names, experts, checkpoint_paths, config):
+    Path(config['save_path']).mkdir(parents=True, exist_ok=True)
+    print(f"Result path: {config['save_path']}")
+
+    eval_loader = load_evaluation_data(model_names, config)
+
+    for expert, model_path in zip(experts, checkpoint_paths):
+        with torch.no_grad():
+            file_IDs, scores, labels = eval_expert(expert, eval_loader, device)
+
+        scores = torch.tensor(scores)
+        scores = scores.cpu().numpy()
+        labels = np.array(labels)
+        print(f"Valid samples: {len(labels)}")
+
+        rocauc, eer = compute_metrics_v2(labels, scores)
+        print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n")
+
+        np.save(f"{config['save_path']}/file_IDs.npy", file_IDs)
+        np.save(f"{config['save_path']}/scores.npy", scores)
+        np.save(f"{config['save_path']}/labels.npy", labels)
+
+
 def main(checkpoint_paths, model_classes):
 
     # DEFINE MODEL
@@ -32,42 +55,25 @@ def main(checkpoint_paths, model_classes):
         name = Path(checkpoint_paths[i]).stem.rsplit('_', 1)[-1]
         model_names.append(name)
 
-    targets = config['selected']
-    for target in targets:
-
-        config['selected'] = [target]
-
+    if config['eval_all']:
         if config['target_check']:
-            config['save_path'] = os.path.join(config['save_folder'], target)
+            config['save_path'] = os.path.join(config['save_folder'], 'ALL')
         else:
             config['save_path'] = config['save_folder']
 
-        Path(config['save_path']).mkdir(parents=True, exist_ok=True)
-        print(f"Result path: {config['save_path']}")
+        run_eval(model_names, experts, checkpoint_paths, config)
 
-        eval_loader = load_evaluation_data(model_names, config)
+    else:
+        targets = config['selected']
+        for target in targets:
+            config['selected'] = [target]
 
-        for expert, model_path in zip(experts, checkpoint_paths):
-            with torch.no_grad():
-                file_IDs, scores, labels = eval_expert(expert, eval_loader, device)
+            if config['target_check']:
+                config['save_path'] = os.path.join(config['save_folder'], target)
+            else:
+                config['save_path'] = config['save_folder']
 
-            scores = torch.tensor(scores)
-            scores = scores.cpu().numpy()
-            labels = np.array(labels)
-
-            print(f"Valid samples: {len(labels)}")
-
-            # fake_scores = scores[labels == 1]
-            # real_scores = scores[labels == 0]
-            # print(f"Mean score (fake=1): {fake_scores.mean():.6f}")
-            # print(f"Mean score (real=0): {real_scores.mean():.6f}")
-
-            rocauc, eer = compute_metrics_v2(labels, scores)
-            print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n")
-
-            np.save(f"{config['save_path']}/file_IDs.npy", file_IDs)
-            np.save(f"{config['save_path']}/scores.npy", scores)
-            np.save(f"{config['save_path']}/labels.npy", labels)
+            run_eval(model_names, experts, checkpoint_paths, config)
 
 
 if __name__ == '__main__':
@@ -81,15 +87,16 @@ if __name__ == '__main__':
 
     # --------------------- PLEASE DEFINE ----------------------#
 
-    config['mod'] = 'energy'
+    config['mod'] = 'oversmooth'
     config['sanity_check'] = False
     config['target_check'] = True
 
     config['train_data'] = 'asv19'
     config['test_data'] = 'asv19'
+    config['eval_all'] = False
 
     config['model'] = 'MLP'
-    model_classes = [MLP_Energy]
+    model_classes = [MLP_Smooth]
 
     model_names = [
         f'{config['mod'].upper()}_{config['model'].upper()}.pth',
@@ -119,10 +126,14 @@ if __name__ == '__main__':
     print(f"Is target check? {config['target_check']} \n")
 
     checkpoint_paths = [os.path.join(config['save_model_folder'], 'experts', name) for name in model_names]
-    config['save_folder'] = os.path.join(config['save_results_folder'],
-                                       'experts',
-                                       config['train_data'],
-                                       config['mod'])
+    config['save_folder'] = os.path.join(
+        config['save_results_folder'],
+        'experts',
+        config['test_data'],
+        f"experts_trained_on_{config['train_data']}",
+        config['mod']
+    )
+
     if config['target_check']:
         config['save_folder'] = os.path.join(config['save_folder'], 'TargetCheck')
     else:

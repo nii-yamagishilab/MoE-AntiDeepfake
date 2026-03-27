@@ -258,7 +258,7 @@ if __name__ == '__main__':
     # --------------------- PLEASE DEFINE ----------------------#
 
     config['train_data'] = 'asv19'
-    config['test_data'] = 'asv19'
+    config['test_data'] = 'asv5'
     config['eval_overall'] = True
 
     # ------------------------- Thanks -------------------------#
@@ -269,7 +269,7 @@ if __name__ == '__main__':
         ckpts_experts = [
             os.path.join(ckpt_exp_path, 'FLAT_PITCH_MLP.pth'),
             os.path.join(ckpt_exp_path, 'F0_INCONS_MLP.pth'),
-            os.path.join(ckpt_exp_path, 'OVERSMOOTH_GRU.pth'),
+            os.path.join(ckpt_exp_path, 'OVERSMOOTH_MLP.pth'),
             os.path.join(ckpt_exp_path, 'MIN_PHASE_LCNN.pth'),
             os.path.join(ckpt_exp_path, 'ENERGY_MLP.pth')
         ]
@@ -292,7 +292,7 @@ if __name__ == '__main__':
     config['save_folder'] = os.path.join(save_path,
                                          config['test_data'],
                                          f'experts_trained_on_{config["train_data"]}',
-                                         'scale_on_calibration_v2')
+                                         'NEW')
     config['target_check'] = False
     config['sanity_check'] = False
     if config['train_data'] == 'asv5':

@@ -19,7 +19,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def select_model(model_name):
     if model_name == 'mlp' and config['mod'] == 'flat_pitch':
-        model = MLP_F0_Incons(return_emb=True)
+        model = MLP_Flat_Pitch(return_emb=True)
     elif model_name == 'mlp' and config['mod'] == 'f0_incons':
         model = MLP_F0_Incons(return_emb=True)
     elif model_name == 'mlp' and config['mod'] == 'energy':

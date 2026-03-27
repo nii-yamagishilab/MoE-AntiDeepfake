@@ -7,19 +7,29 @@ from models.lcnn_model import LCNN
                             # ----------------------------------------#
 
 MODEL_REGISTRY = [
-    ("MLP", MLP_Flat_Pitch),      # flat pitch
-    ("MLP", MLP_F0_Incons),       # f0 inconsistency
-    ("GRU", GRU_Model),
+    ("MLP", MLP_Flat_Pitch),
+
+    ("MLP", MLP_F0_Incons),
+
+    # ("GRU", GRU_Model),
+    ("MLP", MLP_Smooth),
+
     ("LCNN", LCNN),
+
     # ("LCNN", LCNN)
     ("MLP", MLP_Energy)
 ]
 
 MANIPULATIONS_REGISTRY = [
     ("MLP", "flat_pitch"),
+
     ("MLP", "f0_incons"),
-    ("GRU", "oversmooth"),
+
+    # ("GRU", "oversmooth"),
+    ("MLP", "oversmooth"),
+
     ("LCNN", "min_phase"),
+
     # ("LCNN", "energy")
     ("MLP", "energy")
 ]
