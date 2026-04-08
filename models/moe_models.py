@@ -3,10 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# class FlatteningLoss(nn.Module):
-#     def forward(self, x):
-#         return -F.log_softmax(x, dim=1).mean()
-
 class FlatteningLoss(nn.Module):
     def __init__(self, num_experts=4):
         super().__init__()
@@ -16,6 +12,118 @@ class FlatteningLoss(nn.Module):
         # x is already softmaxed
         target = torch.full_like(x, self.target_val)
         return F.mse_loss(x, target)
+
+
+class MOE_Way3(nn.Module):
+    def __init__(self, experts, a_params, b_params, freezing=True, return_weights=False):
+        super(MOE_Way3, self).__init__()
+
+        self.return_weights = return_weights
+        self.experts = nn.ModuleList(experts)
+        self.num_experts = len(experts)
+
+        self.a_params = a_params
+        self.b_params = b_params
+        self.gate = nn.Linear(self.num_experts, self.num_experts)
+
+        if freezing:
+            for expert in self.experts:
+                for p in expert.parameters():
+                    p.requires_grad = False
+
+    def forward(self, x):
+        if isinstance(x, list):
+            results = [expert(feat) for expert, feat in zip(self.experts, x)]
+        else:
+            results = [expert(x) for expert in self.experts]
+
+        outputs = [res[0] for res in results]
+        expert_logits = torch.stack(outputs, dim=1).squeeze(-1)
+
+        a = self.a_params
+        b = self.b_params
+        probabilities = 1 / (1 + torch.exp(-(a * expert_logits + b)))
+        probabilities = torch.clamp(probabilities, 1e-6, 1 - 1e-6)
+
+        gate_logits = self.gate(probabilities.float())
+        gating_weights = torch.softmax(gate_logits, dim=1)
+
+        weighted_scores = gating_weights * probabilities
+        combined_output = torch.sum(weighted_scores, dim=1, keepdim=True)
+
+        if self.return_weights:
+            return combined_output, weighted_scores
+        else:
+            return combined_output, gating_weights, weighted_scores, expert_logits
+
+
+# class MOE_Way4(nn.Module):
+#     def __init__(self, experts, a_params, b_params, freezing=True, return_weights=False):
+#         super(MOE_Way4, self).__init__()
+#
+#         self.return_weights = return_weights
+#         self.experts = nn.ModuleList(experts)
+#         self.num_experts = len(experts)
+#
+#         self.a_params = a_params
+#         self.b_params = b_params
+#
+#         self.hidden_dim = 128
+#         self.proj_dim = 32
+#
+#         self.proc_emb = nn.ModuleList([
+#             nn.Sequential(
+#                 nn.Linear(expert.latent_dim, self.hidden_dim),
+#                 nn.BatchNorm1d(self.hidden_dim),
+#                 nn.GLU(),
+#                 nn.Linear(self.hidden_dim // 2, self.proj_dim)
+#             )
+#             for expert in experts
+#         ])
+#
+#         self.TransfEnc = nn.Sequential(
+#             nn.TransformerEncoderLayer(d_model=self.proj_dim, nhead=4, dropout=0.1, dim_feedforward=512, batch_first=True, norm_first=True),
+#             nn.TransformerEncoderLayer(d_model=self.proj_dim, nhead=4, dropout=0.1, dim_feedforward=512, batch_first=True, norm_first=True),
+#         )
+#
+#         self.linear_out = nn.Linear(self.proj_dim, 1)
+#
+#         if freezing:
+#             for expert in self.experts:
+#                 for p in expert.parameters():
+#                     p.requires_grad = False
+#
+#     def forward(self, x):
+#         if isinstance(x, list):
+#             results = [expert(feat) for expert, feat in zip(self.experts, x)]
+#         else:
+#             results = [expert(x) for expert in self.experts]
+#
+#         outputs = [res[0] for res in results]
+#         expert_logits = torch.stack(outputs, dim=1).squeeze(-1)
+#
+#         a = self.a_params
+#         b = self.b_params
+#         probabilities = 1 / (1 + torch.exp(-(a * expert_logits + b)))
+#         probabilities = torch.clamp(probabilities, 1e-6, 1 - 1e-6)
+#
+#         embeddings = [res[1] for res in results]
+#         processed_embs = torch.stack([proc_emb(emb) for proc_emb, emb in zip(self.proc_emb, embeddings)], dim=1)
+#         gate_logits = self.linear_out(self.TransfEnc(processed_embs))
+#         gating_weights = torch.softmax(gate_logits, dim=1)
+#
+#         weighted_scores = gating_weights.squeeze(-1) * probabilities
+#         combined_output = torch.sum(weighted_scores, dim=1, keepdim=True)
+#
+#         if self.return_weights:
+#             return combined_output, weighted_scores
+#         else:
+#             return combined_output, gating_weights, weighted_scores, expert_logits
+
+
+
+# ---------------------------------------- NOT IN USE ----------------------------------------#
+
 
 class MOE_ICASSP(nn.Module):
     def __init__(self, experts, freezing=True, return_weights=False):
@@ -141,7 +249,6 @@ class MOE_WIFS(nn.Module):
         else:
             return combined_output, gating_weights, weighted_logits, stacked_logits.squeeze(-1)
 
-
 class MOE_Way1(nn.Module):
     def __init__(self, experts, freezing=True, return_weights=False):
         super(MOE_Way1, self).__init__()
@@ -249,47 +356,3 @@ class MOE_Way2(nn.Module):
             return combined_output, gating_weights.unsqueeze(-1)
         else:
             return combined_output, gating_weights, weighted_logits, stacked_logits
-
-class MOE_Way3(nn.Module):
-    def __init__(self, experts, a_params, b_params, freezing=True, return_weights=False):
-        super(MOE_Way3, self).__init__()
-
-        self.return_weights = return_weights
-        self.experts = nn.ModuleList(experts)
-        self.num_experts = len(experts)
-
-        self.a_params = a_params
-        self.b_params = b_params
-        self.weights = nn.Parameter(torch.ones(self.num_experts))
-
-        if freezing:
-            for expert in self.experts:
-                for p in expert.parameters():
-                    p.requires_grad = False
-
-    def forward(self, x):
-
-        if isinstance(x, list):
-            results = [expert(feat) for expert, feat in zip(self.experts, x)]
-        else:
-            results = [expert(x) for expert in self.experts]
-
-        outputs = [res[0] for res in results]
-        expert_logits = torch.stack(outputs, dim=1).squeeze(-1)
-
-        a = self.a_params.unsqueeze(0)  # (1, E)
-        b = self.b_params.unsqueeze(0)  # (1, E)
-        probabilities = 1 / (1 + torch.exp(-(a * expert_logits + b)))
-        probabilities = torch.clamp(probabilities, 1e-6, 1 - 1e-6)
-        # print(probabilities.shape)
-
-        gating_weights = torch.softmax(self.weights, dim=0).unsqueeze(0)
-        # print(gating_weights.shape)
-        
-        weighted_scores = gating_weights * probabilities
-        combined_output = torch.sum(weighted_scores, dim=1, keepdim=True)
-
-        if self.return_weights:
-            return combined_output, probabilities.unsqueeze(-1)
-        else:
-            return combined_output, gating_weights, weighted_scores, expert_logits

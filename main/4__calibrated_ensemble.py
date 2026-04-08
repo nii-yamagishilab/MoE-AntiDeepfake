@@ -6,7 +6,7 @@ import sys
 import os
 sys.path.insert(1, os.getcwd())
 
-from utils.data_utils import load_calibration_data, load_evaluation_data
+from utils.data_utils import *
 from pathlib import Path
 from utils.training_utils import expert_loop
 from utils.utils import *
@@ -64,25 +64,38 @@ def run_calibration(experts, models_list, config):
     all_b = []
     all_kde_H1 = []
     all_kde_H0 = []
-    mods = ['flat_pitch', 'f0_incons', 'oversmooth', 'min_phase', 'energy']  # mind the order!!!
 
     for i, expert in enumerate(experts):
         print(f"CALIBRATING EXPERT {i+1} / {len(experts)}...")
         expert.to(device)
 
-        val_loader = load_calibration_data(mods[i], config)
+        val_loader = load_calibration_data(config["all_manipulations"][i], config)
 
-        val_loader.dataset.mod = mods[i]
-        calib_loader.dataset.mod = mods[i]
+        # config['mod'] = config["all_manipulations"][i]
+        # config['large_scale'] = True
+        # _, val_loader = load_training_data(models_list, config)
+
+        val_loader.dataset.mod = config["all_manipulations"][i]
+        calib_loader.dataset.mod = config["all_manipulations"][i]
 
         a, b = platt_scaling(val_loader, expert)
         kde_H1, kde_H0 = calibrate_expert(calib_loader, expert, a, b)
 
+        # print(f"idx: {i}")
+        # if i == 0:
+        #     temp_kde_H1 = kde_H1
+        #     temp_kde_H0 = kde_H0
         all_a.append(a)
         all_b.append(b)
         all_kde_H1.append(kde_H1)
         all_kde_H0.append(kde_H0)
-
+        # if i != 1:
+        #     all_kde_H1.append(kde_H1)
+        #     all_kde_H0.append(kde_H0)
+        # else:
+        #     print("asd"*10)
+        #     all_kde_H1.append(temp_kde_H1)
+        #     all_kde_H0.append(temp_kde_H0)
         print()
 
     return all_a, all_b, all_kde_H1, all_kde_H0
@@ -104,13 +117,12 @@ def run_evaluation(experts, eval_loader, all_a, all_b, all_H1, all_H0, config):
 
     # Compute likelihood ratios for each expert
 
-    mods = ['flat_pitch', 'f0_incons', 'oversmooth', 'min_phase', 'energy']  # mind the order!!!
     all_results = []
 
     for i, expert in enumerate(experts):
         print(f"EVALUATING EXPERT {i+1} / {len(experts)}...")
         expert.to(device)
-        eval_loader.dataset.mod = mods[i]
+        eval_loader.dataset.mod = config["all_manipulations"][i]
 
         a = all_a[i]
         b = all_b[i]
@@ -128,6 +140,9 @@ def run_evaluation(experts, eval_loader, all_a, all_b, all_H1, all_H0, config):
         })
 
         print()
+
+        if i >= 1:
+            break
 
     print(f"\nComputing ensemble scores...")
 
@@ -196,14 +211,16 @@ def test_ensemble(ckpts_experts, config):
         experts.append(model)
         models_list.append(model_type)
 
-    # Load necessary data
-    # config['merge'] = True
-    # _, val_loader = load_training_data(models_list, config)
-    # calib_loader = load_evaluation_data(models_list, config)
-    # config['target_check'] = True
-
     # Calibrate & evaluate
     Path(config['save_folder']).mkdir(parents=True, exist_ok=True)
+
+    # files = {name: f"/home/smg/v-viola/moe_antideepfake/results/Ensemble/asv19/experts_trained_on_mix/6_experts/{name}{'.pkl' if 'H' in name else '.npy'}"
+    #                    for name in ['all_a', 'all_b', 'all_H1', 'all_H0']}
+    # all_a = np.load(files['all_a'], allow_pickle=True)
+    # all_b = np.load(files['all_b'], allow_pickle=True)
+    # all_H1 = joblib.load(files['all_H1'])
+    # all_H0 = joblib.load(files['all_H0'])
+
     files = {name: f"{config['save_folder']}/{name}{'.pkl' if 'H' in name else '.npy'}"
              for name in ['all_a', 'all_b', 'all_H1', 'all_H0']}
 
@@ -258,8 +275,11 @@ if __name__ == '__main__':
     # --------------------- PLEASE DEFINE ----------------------#
 
     config['train_data'] = 'asv19'
-    config['test_data'] = 'asv5'
-    config['eval_overall'] = True
+    config['test_data'] = 'asv19'
+    config['eval_overall'] = False
+
+    config["all_manipulations"] = ['flat_pitch', 'f0_incons', 'oversmooth',
+                                   'min_phase', 'energy', 'ckrboard']  # mind the order!!!
 
     # ------------------------- Thanks -------------------------#
 
@@ -271,9 +291,10 @@ if __name__ == '__main__':
             os.path.join(ckpt_exp_path, 'F0_INCONS_MLP.pth'),
             os.path.join(ckpt_exp_path, 'OVERSMOOTH_MLP.pth'),
             os.path.join(ckpt_exp_path, 'MIN_PHASE_LCNN.pth'),
-            os.path.join(ckpt_exp_path, 'ENERGY_MLP.pth')
+            os.path.join(ckpt_exp_path, 'ENERGY_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'CKRBOARD_MLP.pth')
         ]
-    else:
+    elif config['train_data'] == 'asv5':
         ckpts_experts = [
             os.path.join(ckpt_exp_path, 'FLAT_PITCH_MLP_ASV5.pth'),
             os.path.join(ckpt_exp_path, 'F0_INCONS_MLP_ASV5.pth'),
@@ -281,18 +302,32 @@ if __name__ == '__main__':
             os.path.join(ckpt_exp_path, 'MIN_PHASE_LCNN_ASV5.pth'),
             os.path.join(ckpt_exp_path, 'ENERGY_LCNN_ASV5.pth')
         ]
+    else:
+        ckpts_experts = [
+            os.path.join(ckpt_exp_path, 'MIX_FLAT_PITCH_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'MIX_F0_INCONS_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'MIX_OVERSMOOTH_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'MIX_MIN_PHASE_LCNN.pth'),
+            os.path.join(ckpt_exp_path, 'MIX_ENERGY_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'MIX_CKRBOARD_MLP.pth')
+        ]
 
     if config['test_data'] == 'asv19':
         config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12']
     elif config['test_data'] == 'asv5':
-        config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12', 'A14']
+        # config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12', 'A14']
+        config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08',
+                              'A09', 'A10', 'A11', 'A12', 'A14',
+                              'A17', 'A19', 'A21', 'A22', 'A28', 'A29']
     else:
         print("Test dataset not supported.\n")
         sys.exit()
     config['save_folder'] = os.path.join(save_path,
                                          config['test_data'],
                                          f'experts_trained_on_{config["train_data"]}',
-                                         'NEW')
+                                         'temp/trials5')
+    print(f"Save folder: {config['save_folder']}")
+
     config['target_check'] = False
     config['sanity_check'] = False
     if config['train_data'] == 'asv5':

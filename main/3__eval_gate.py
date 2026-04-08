@@ -61,10 +61,15 @@ def test_moe(checkpoint_moe, ckpts_experts, save_folder, config):
         models_list.append(model_type)
 
     # LOAD GATING NETWORK
-    if 'cat' in checkpoint_moe.lower():
-        moe_model = MOE_ICASSP(experts=experts, return_weights=False)
-    else:
-        moe_model = MOE_Way2(experts=experts, return_weights=False)
+    scaling_params_path = os.path.join(config['save_results_folder'], config['scaling_params'] )
+    a_params = np.load(os.path.join(scaling_params_path, 'all_a.npy'))
+    b_params = np.load(os.path.join(scaling_params_path, 'all_b.npy'))
+    a_params = torch.tensor(a_params).to(device)
+    b_params = torch.tensor(b_params).to(device)
+
+    moe_model = MOE_Way3(experts=experts,
+                         a_params=a_params,
+                         b_params=b_params)
 
     for expert in experts:
         expert.to(device)
@@ -101,19 +106,18 @@ if __name__ == '__main__':
 
     # --------------------- PLEASE DEFINE ----------------------#
 
-    config['eval_all'] = False
+    config['eval_all'] = True
 
     config['sanity_check'] = False
     config['target_check'] = True
 
-    config['train_data'] = 'asv5'
+    config['train_data'] = 'asv19'
     config['test_data'] = 'asv5'
 
-    # ckpt_moe = os.path.join(ckpt_moe_path, 'frozen_5_exp_new_calib_fixed.pth')   # best model trained on asv19
-    # ckpt_moe = os.path.join(ckpt_moe_path, 'asv5_frozen_5_exp_calib.pth')      # counterpart trained on asv5
-    ckpt_moe = os.path.join(ckpt_moe_path, 'asv5_frozen_5_exp_linear_comb.pth')
+    ckpt_moe = os.path.join(ckpt_moe_path, 'MoE_Way3_Asv19_Frozen_6Exp.pth')
 
     # ------------------------- Thanks -------------------------#
+    config['scaling_params'] = f'Ensemble/asv19/experts_trained_on_{config['train_data']}/6_experts'
 
     if config['train_data'] == 'asv19':
         ckpts_experts = [
@@ -121,7 +125,17 @@ if __name__ == '__main__':
             os.path.join(ckpt_exp_path, 'F0_INCONS_MLP.pth'),
             os.path.join(ckpt_exp_path, 'OVERSMOOTH_MLP.pth'),
             os.path.join(ckpt_exp_path, 'MIN_PHASE_LCNN.pth'),
-            os.path.join(ckpt_exp_path, 'ENERGY_MLP.pth')
+            os.path.join(ckpt_exp_path, 'ENERGY_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'CKRBOARD_MLP.pth')
+        ]
+    elif config['train_data'] == 'mix':
+        ckpts_experts = [
+            os.path.join(ckpt_exp_path, 'MIX_FLAT_PITCH_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'MIX_F0_INCONS_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'MIX_OVERSMOOTH_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'MIX_MIN_PHASE_LCNN.pth'),
+            os.path.join(ckpt_exp_path, 'MIX_ENERGY_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'MIX_CKRBOARD_MLP.pth')
         ]
     else:
         ckpts_experts = [
@@ -136,7 +150,10 @@ if __name__ == '__main__':
         if config['test_data'] == 'asv19':
             config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12']
         elif config['test_data'] == 'asv5':
-            config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12', 'A14']
+            # config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12', 'A14']
+            config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08',
+                                  'A09', 'A10', 'A11', 'A12', 'A14',
+                                  'A17', 'A19', 'A21', 'A22', 'A28', 'A29']
         elif config['test_data'] == 'wf':
             config['selected'] = ["tts_ljspeech", "ljspeech_full_band_melgan", "ljspeech_hifiGAN", "ljspeech_melgan",
                                   "ljspeech_melgan_large", "ljspeech_multi_band_melgan", "ljspeech_parallel_wavegan",

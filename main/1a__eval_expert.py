@@ -8,6 +8,7 @@ sys.path.insert(1, os.getcwd())
 from pathlib import Path
 from utils.data_utils import load_evaluation_data
 from models.small_models import *
+from models.lcnn_model import LCNN
 from utils.training_utils import eval_expert
 from utils.utils import *
 import torch
@@ -87,19 +88,19 @@ if __name__ == '__main__':
 
     # --------------------- PLEASE DEFINE ----------------------#
 
-    config['mod'] = 'oversmooth'
+    config['mod'] = 'min_phase'
     config['sanity_check'] = False
     config['target_check'] = True
 
-    config['train_data'] = 'asv19'
-    config['test_data'] = 'asv19'
+    config['train_data'] = 'mix'
+    config['test_data'] = 'asv15'
     config['eval_all'] = False
 
-    config['model'] = 'MLP'
-    model_classes = [MLP_Smooth]
+    config['model'] = 'LCNN'
+    model_classes = [LCNN]
 
     model_names = [
-        f'{config['mod'].upper()}_{config['model'].upper()}.pth',
+        f'MIX_{config['mod'].upper()}_{config['model'].upper()}.pth',
     ]
 
     # ------------------------- Thanks -------------------------#
@@ -108,12 +109,19 @@ if __name__ == '__main__':
         if config['test_data'] == 'asv19':
             config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12']
         elif config['test_data'] == 'asv5':
-            config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12', 'A14']
-            # config['selected'] = ['A14']
+            # config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12', 'A14']
+            config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08',
+                                  'A09', 'A10', 'A11', 'A12', 'A14',
+                                  'A17', 'A19', 'A21', 'A22', 'A28', 'A29']
         elif config['test_data'] == 'wf':
             config['selected'] = ["tts_ljspeech", "ljspeech_full_band_melgan", "ljspeech_hifiGAN", "ljspeech_melgan",
                                   "ljspeech_melgan_large", "ljspeech_multi_band_melgan", "ljspeech_parallel_wavegan",
                                   "ljspeech_waveglow", "jsut_multi_band_melgan", "jsut_parallel_wavegan"]
+        elif config['test_data'] == 'sc':
+            config['selected'] = ['a01', 'a02', 'a03', 'a04', 'a05', 'a06', 'a07', 'a08', 'a09', 'a10', 'a11',
+                                  'a12', 'a13', 'a14', 'a15', 'a16', 'a17', 'a18', 'a19', 'a20', 'a21', 'a22', 'a23']
+        elif config['test_data'] == 'asv15':
+            config['selected'] = ['S3', 'S4', 'S10']
         else:
             print("Test dataset not supported. \n")
             sys.exit()

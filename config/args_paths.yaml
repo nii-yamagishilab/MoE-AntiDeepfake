@@ -7,11 +7,13 @@ asv5:
   base_path: '/Database/ASVspoof5'
   train_file: "protocols/ASVspoof5.train.tsv"
   dev_file: "protocols/ASVspoof5.dev.track_1.tsv"
+  eval_file: "protocols/ASVspoof5.eval.track_1.tsv"
   filter_column: 8
   gen_column: 7
   path_column: 1
   train_dir: "flac_T"
   dev_dir: "flac_D"
+  eval_dir: "flac_E_eval"
 
 asv19:
   base_path: '/Database/ASVspoof2019/public_released_data'
@@ -24,6 +26,19 @@ asv19:
   train_dir: "LA/ASVspoof2019_LA_train/flac"
   dev_dir: "LA/ASVspoof2019_LA_dev/flac"
   eval_dir: "LA/ASVspoof2019_LA_eval/flac"
+
+sc:
+  base_path: "/Database/SpoofCeleb"
+  real_T_dir: "/home/smg/v-viola/SpoofCeleb_real_T.txt"
+  real_D_dir: "/home/smg/v-viola/SpoofCeleb_real_D.txt"
+  meta_train: "metadata/train.csv"
+  meta_dev: "metadata/development.csv"
+  meta_eval: "metadata/evaluation.csv"
+  gen_column: 2
+  path_column: 0
+  train_dir: "flac/train"
+  dev_dir: "flac/development"
+  eval_dir: "flac/evaluation"
 
 wf:
   base_path: '/Database/WaveFake'
@@ -41,6 +56,11 @@ mlaad:
   gen_column: 4
   path_column: 1
   file_dir: 'wav_16k'
+
+asv15:
+  base_path: '/Database/ASVspoof2015/public_version'
+  gen_column: 2
+  file_dir: "/Database/ASVspoof2015/public_version/wav"
 
 for_path: '/Database/Fake-or-Real-Dataset/for-original'
 add2022_path: '/Database/ADD2022'

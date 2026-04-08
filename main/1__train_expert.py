@@ -17,28 +17,6 @@ import torch.nn.functional as F
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def select_model(model_name):
-    if model_name == 'mlp' and config['mod'] == 'flat_pitch':
-        model = MLP_Flat_Pitch(return_emb=True)
-    elif model_name == 'mlp' and config['mod'] == 'f0_incons':
-        model = MLP_F0_Incons(return_emb=True)
-    elif model_name == 'mlp' and config['mod'] == 'energy':
-        model = MLP_Energy(return_emb=True)
-    elif model_name == 'mlp' and config['mod'] == 'oversmooth':
-        model = MLP_Smooth(return_emb=True)
-    elif model_name == 'cnn':
-        model = CNN_1D_Model(return_emb=True)
-    elif model_name == 'gru':
-        model = GRU_Model(return_emb=True)
-    elif model_name == 'lcnn':
-        model = LCNN(return_emb=True)
-    else:
-        print('Model name not recognized.')
-        sys.exit()
-
-    model = (model).to(device)
-    return model
-
 class Supervised_ContrastiveLoss(nn.Module):
     def __init__(self, temperature=0.07):
         super().__init__()
@@ -64,6 +42,30 @@ class Supervised_ContrastiveLoss(nn.Module):
         loss = -(pos_mask * log_prob).sum(1) / pos_mask.sum(1)
 
         return loss.mean()
+
+def select_model(model_name):
+    if model_name == 'mlp' and config['mod'] == 'flat_pitch':
+        model = MLP_Flat_Pitch(return_emb=True)
+    elif model_name == 'mlp' and config['mod'] == 'f0_incons':
+        model = MLP_F0_Incons(return_emb=True)
+    elif model_name == 'mlp' and config['mod'] == 'energy':
+        model = MLP_Energy(return_emb=True)
+    elif model_name == 'mlp' and config['mod'] == 'oversmooth':
+        model = MLP_Smooth(return_emb=True)
+    elif model_name == 'mlp' and config['mod'] == 'ckrboard':
+        model = MLP_Checkerboard(return_emb=True)
+    elif model_name == 'cnn':
+        model = CNN_1D_Model(return_emb=True)
+    elif model_name == 'gru':
+        model = GRU_Model(return_emb=True)
+    elif model_name == 'lcnn':
+        model = LCNN(return_emb=True)
+    else:
+        print('Model name not recognized.')
+        sys.exit()
+
+    model = (model).to(device)
+    return model
 
 def main(config):
     config['save_model_folder'] = os.path.join(config['save_model_folder'], 'experts')
@@ -125,20 +127,24 @@ if __name__ == '__main__':
 
     # ------------------- PLEASE DEFINE SETTINGS: ------------------ #
 
-    config['train_data'] = 'asv19'
-    config['merge'] = True
+    config['train_data'] = 'mix'
 
     config['model'] = 'mlp'
-    config['mod'] = 'flat_pitch'
+    config['mod'] = 'ckrboard'
 
     # ----------------------------- Thanks --------------------------- #
+
+    config["model_name"] = f'{config['train_data'].upper()}_{config['mod'].upper()}_{config["model"].upper()}.pth'
 
     if config['train_data'] == 'asv5':
         config['reduce_set'] = True
     else:
         config['reduce_set'] = False
 
-    config["model_name"] = f'{config['mod'].upper()}_{config["model"].upper()}_v2.pth'
+    if config['train_data'] == 'mix':
+        config['large_scale'] = True
+    else:
+        config['large_scale'] = False
 
     print(f"\nModel type: {config['model']}")
     print(f"Model name: {config['model_name']}")

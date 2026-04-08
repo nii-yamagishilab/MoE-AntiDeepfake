@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=eval_moe
-#SBATCH --out="txt/E_moe5_way2_each.out.txt"
+#SBATCH --out="txt/E_MoE_Way3_ASV19_asv5.out.txt"
 #SBATCH --time=3-00:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1

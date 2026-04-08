@@ -13,41 +13,99 @@ warnings.simplefilter(action='ignore', category=UserWarning)
 #--------------------------- Current Dataframes ---------------------------#
 
 def make_df_bonafide(config):
-    if config['train_data'] not in config:
-        print('Dataset not supported.')
-        sys.exit()
-
-    ds_name = config['train_data']
-    ds = config[ds_name]
-    base_path = ds['base_path']
-
     def load_subset(file_path, dir_name, filter_col, path_col):
         df = pd.read_csv(file_path, sep=' ', header=None)
         return (
             df[df[filter_col] == 'bonafide']
-              .assign(path=lambda df: df[path_col].apply(
-                  lambda x: os.path.join(base_path, dir_name, f"{x}.flac")
-              ))[['path']]
+            .rename(columns={0: 'speaker'})
+            .assign(path=lambda df: df[path_col].apply(
+                lambda x: os.path.join(base_path, dir_name, f"{x}.flac")
+            ))[["speaker", "path"]]
         )
 
-    df_t = load_subset(os.path.join(base_path, ds['train_file']),
-                       ds['train_dir'],
-                       ds['filter_column'],
-                       ds['path_column'])
+    if config['large_scale']:
 
-    df_d = load_subset(os.path.join(base_path, ds['dev_file']),
-                       ds['dev_dir'],
-                       ds['filter_column'],
-                       ds['path_column'])
+        # def speaker_split(df, val_ratio=0.2, seed=42):
+        #     speakers = df['speaker'].drop_duplicates().sample(frac=1, random_state=seed)
+        #     n_val = int(len(speakers) * val_ratio)
+        #
+        #     val_speakers = set(speakers.iloc[:n_val])
+        #     train_speakers = set(speakers.iloc[n_val:])
+        #
+        #     df_train = df[df['speaker'].isin(train_speakers)]
+        #     df_val = df[df['speaker'].isin(val_speakers)]
+        #
+        #     return df_train, df_val
+        #
+        # # Load ASVspoof 2019 & 5
+        # dfs = {}
+        # for ds_name in ['asv19', 'asv5']:
+        #     ds = config[ds_name]
+        #     base_path = ds['base_path']
+        #     dfs[ds_name] = pd.concat([
+        #         load_subset(os.path.join(base_path, ds[f'{split}_file']),
+        #                     ds[f'{split}_dir'],
+        #                     ds['filter_column'],
+        #                     ds['path_column'])
+        #         for split in ['train', 'dev']
+        #     ], ignore_index=True)
+        # df_asv19 = dfs['asv19']
+        # df_asv5 = dfs['asv5']
+        #
+        # # Load VoxCeleb 1
+        # ds_name = 'sc'
+        # ds = config[ds_name]
+        # df_t = pd.read_csv(ds['real_T_dir'], header=None, names=['path'])
+        # df_d = pd.read_csv(ds['real_D_dir'], header=None, names=['path'])
+        #
+        # df_vox = pd.concat([df_t, df_d], ignore_index=True)
+        # df_vox['speaker'] = df_vox['path'].str.split('/').str[-2]
+        #
+        # n = min(len(df_asv19), len(df_asv5), len(df_vox))
+        # df_asv19 = df_asv19.sample(n, random_state=42)
+        # df_asv5 = df_asv5.sample(n, random_state=42)
+        # df_vox = df_vox.sample(n, random_state=42)
+        #
+        # asv19_tr, asv19_val = speaker_split(df_asv19)
+        # asv5_tr, asv5_val = speaker_split(df_asv5)
+        # vox_tr, vox_val = speaker_split(df_vox)
+        #
+        # df_t = pd.concat([asv19_tr, asv5_tr, vox_tr], ignore_index=True)
+        # df_d = pd.concat([asv19_val, asv5_val, vox_val], ignore_index=True)
+        #
+        # df_t['path'].to_csv('/home/smg/v-viola/Mix_Train.txt',
+        #                      index=False, header=False)
+        #
+        # df_d['path'].to_csv('/home/smg/v-viola/Mix_Dev.txt',
+        #                    index=False, header=False)
 
-    if config['merge']:
-        df = pd.concat([df_t, df_d], ignore_index=True)
-        return df
-    else:
+        df_t = pd.read_csv('/home/smg/v-viola/Mix_Train.txt',
+                            header=None, names=['path'])
+
+        df_d = pd.read_csv('/home/smg/v-viola/Mix_Dev.txt',
+                          header=None, names=['path'])
+
         return df_t, df_d
 
+    else:
+        ds_name = config['train_data']
+        ds = config[ds_name]
+        base_path = ds['base_path']
+
+        df_t = load_subset(os.path.join(base_path, ds['train_file']),
+                           ds['train_dir'],
+                           ds['filter_column'],
+                           ds['path_column'])
+
+        df_d = load_subset(os.path.join(base_path, ds['dev_file']),
+                           ds['dev_dir'],
+                           ds['filter_column'],
+                           ds['path_column'])
+
+        return pd.concat([df_t, df_d], ignore_index=True)
+
 def load_training_data(models_list, config):
-    if not config['merge']:
+    if config['large_scale']:
         df_train, df_dev = make_df_bonafide(config)
     else:
         df_all = make_df_bonafide(config)
@@ -160,6 +218,67 @@ def load_evaluation_data(models_list, config):
             df_real_sampled = df_real.sample(n=nb_class_samples * n_classes, random_state=42)
             df_eval = pd.concat([df_fake_sampled, df_real_sampled])
 
+        elif config['test_data'] == 'sc':
+            df_train = pd.read_csv(os.path.join(ds['base_path'], ds['meta_train']), sep=',', header=None)
+            df_train['label'] = df_train[ds['gen_column']].apply(lambda x: 0 if x == 'a00' else 1)
+            df_train['path'] = df_train[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}"))
+
+            df_dev = pd.read_csv(os.path.join(ds['base_path'], ds['meta_dev']), sep=',', header=None)
+            df_dev['label'] = df_dev[ds['gen_column']].apply(lambda x: 0 if x == 'a00' else 1)
+            df_dev['path'] = df_dev[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['dev_dir'], f"{x}"))
+
+            df_test = pd.read_csv(os.path.join(ds['base_path'], ds['meta_eval']), sep=',', header=None)
+            df_test['label'] = df_test[ds['gen_column']].apply(lambda x: 0 if x == 'a00' else 1)
+            df_test['path'] = df_test[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}"))
+            df_all = pd.concat([df_train, df_dev, df_test], ignore_index=True)
+
+            target_df = config['selected']
+            print(f"Target generator: {target_df}")
+
+            dfs = []
+            df_real_pool = df_test[df_test['label'] == 0]
+            n_requested = nb_class_samples * len(target_df)
+            n_available = len(df_real_pool)
+            df_real = df_real_pool.sample(
+                n=min(n_requested, n_available),
+                random_state=42
+            )
+            dfs.append(df_real)
+
+            df_fake = (
+                df_all[df_all[ds['gen_column']].isin(target_df)]
+                .groupby(ds['gen_column'], group_keys=False)
+                .sample(n=nb_class_samples, random_state=42))
+            dfs.append(df_fake)
+
+            df_eval = pd.concat(dfs, ignore_index=True)
+
+        elif config['test_data'] == 'asv15':
+            df_test = pd.read_csv(os.path.join(ds['base_path'], "CM_protocol/cm_evaluation.ndx"), sep=' ',header=None)
+            df_test = df_test[df_test[ds['gen_column']].isin(['human', 'S3', 'S4', 'S10'])]
+            df_test['label'] = (df_test[ds['gen_column']] != 'human').astype(int)
+            df_test['path'] = (ds['file_dir'] + '/' + df_test[0].astype(str) + '/' + df_test[1].astype(str) + '.wav')
+            target_df = config['selected']
+            print(f"Target generator: {target_df}")
+
+            dfs = []
+
+            df_real_pool = df_test[df_test['label'] == 0]
+            n_requested = nb_class_samples * len(target_df)
+            n_available = len(df_real_pool)
+            df_real = df_real_pool.sample(
+                n=min(n_requested, n_available),
+                random_state=42
+            )
+            dfs.append(df_real)
+            df_fake = (
+                df_test[df_test[ds['gen_column']].isin(target_df)]
+                .groupby(ds['gen_column'], group_keys=False)
+                .sample(n=nb_class_samples, random_state=42))
+            dfs.append(df_fake)
+
+            df_eval = pd.concat(dfs, ignore_index=True)
+
         else:
             df_train = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
             df_dev = pd.read_csv(os.path.join(ds['base_path'], ds['dev_file']), sep=' ', header=None)
@@ -172,22 +291,23 @@ def load_evaluation_data(models_list, config):
             df_dev['path'] = df_dev[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['dev_dir'], f"{x}.flac"))
             # df_dev = df_dev[df_dev['label'] == 1]
 
-            if config['test_data'] == 'asv19':
-                df_test = pd.read_csv(os.path.join(ds['base_path'], ds['eval_file']), sep=' ', header=None)
-                df_test['label'] = df_test[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
-                df_test['path'] = df_test[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac"))
-                df_all = pd.concat([df_train, df_dev, df_test], ignore_index=True)
-            else:
-                df_all = pd.concat([df_train, df_dev], ignore_index=True)
+            df_test = pd.read_csv(os.path.join(ds['base_path'], ds['eval_file']), sep=' ', header=None)
+            df_test['label'] = df_test[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
+            df_test['path'] = df_test[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac"))
+            df_all = pd.concat([df_train, df_dev, df_test], ignore_index=True)
 
             target_df = config['selected']
             print(f"Target generator: {target_df}")
 
             dfs = []
 
-            df_real_2 = (
-                df_all[df_all[ds['gen_column']].isin(['-', 'bonafide'])]
-                .sample(n=nb_class_samples * len(target_df), random_state=42))
+            df_real_pool = df_test[df_test['label'] == 0]
+            n_requested = nb_class_samples * len(target_df)
+            n_available = len(df_real_pool)
+            df_real_2 = df_real_pool.sample(
+                n=min(n_requested, n_available),
+                random_state=42
+            )
             dfs.append(df_real_2)
 
             df_fake_2 = (
@@ -210,22 +330,28 @@ def load_evaluation_data(models_list, config):
 
 def load_calibration_data(mod, config):
         print("Loading calibration data.")
-
-        ds = config[config['test_data']]
         nb_class_samples = 500
 
+        ds = config[config['test_data']]
         if config['test_data'] == 'asv19':
             if not config['pool']:
                 if mod in ['flat_pitch', 'oversmooth']:
                     target = ['-', 'A01']
                 elif mod in ['f0_incons', 'energy']:
                     target = ['-', 'A04']
-                else:
+                else:  # phase, ckrboard
                     target = ['-', 'A03']
             else:
-                target = ['-', 'A01', 'A03', 'A04']
+                # target = ['-', 'A01', 'A03', 'A04']
+                target = ['-', 'A04']
         else:
             if not config['pool']:
+                # if mod in ['oversmooth', 'min_phase' 'energy']:
+                #     target = ['bonafide', 'A21']
+                # elif mod in ['flat_pitch', 'f0_incons']:
+                #     target = ['bonafide', 'A12']
+                # else:  # smooth, phase, ckrboard  TODO: not ok for checkerboard
+                #     target = ['bonafide', 'A17']
                 if mod in ['energy']:
                     target = ['bonafide', 'A09']
                 elif mod in ['flat_pitch', 'f0_incons']:
@@ -234,6 +360,7 @@ def load_calibration_data(mod, config):
                     target = ['bonafide', 'A07']
             else:
                 target = ['bonafide', 'A02', 'A07', 'A09']
+                # target = ['bonafide', 'A12', 'A17', 'A21']
 
         nb_targets = len(target) - 1
 
@@ -247,7 +374,12 @@ def load_calibration_data(mod, config):
         df_d['label'] = df_d[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
         df_d['path'] = df_d[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['dev_dir'], f"{x}.flac"))
 
-        df = pd.concat([df_t, df_d], ignore_index=True)
+        df_e = pd.read_csv(os.path.join(ds['base_path'], ds['eval_file']), sep=' ', header=None)
+        df_e = df_e[df_e[ds['gen_column']].isin(target)]
+        df_e['label'] = df_e[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
+        df_e['path'] = df_e[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac"))
+
+        df = pd.concat([df_t, df_d, df_e], ignore_index=True)
 
         dfs = []
         df_real = (

@@ -17,7 +17,9 @@ MODEL_REGISTRY = [
     ("LCNN", LCNN),
 
     # ("LCNN", LCNN)
-    ("MLP", MLP_Energy)
+    ("MLP", MLP_Energy),
+
+    ("MLP", MLP_Checkerboard)
 ]
 
 MANIPULATIONS_REGISTRY = [
@@ -31,7 +33,9 @@ MANIPULATIONS_REGISTRY = [
     ("LCNN", "min_phase"),
 
     # ("LCNN", "energy")
-    ("MLP", "energy")
+    ("MLP", "energy"),
+
+    ("MLP", "ckrboard")
 ]
 
 def get_model_type_from_ckpt(ckpt_path):

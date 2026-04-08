@@ -8,6 +8,9 @@ from scipy.fft import ifft
 import torch
 import torchaudio
 import math
+import scipy.signal as sps
+import scipy.ndimage as ndi
+
 
 ################################################################################################################
 #------------------------------------------------- EXTRACTION -------------------------------------------------#
@@ -211,6 +214,54 @@ def energy_extraction(y, stft_params):
     return energy
 
 
+#___________________________Checkerboard Artifact_________________________#
+
+def extract_ckrboard_feature(
+    x,
+    sr=16000,
+    n_fft=512,
+    hop_length=256,
+    baseline_win=32,
+    fmin=1000,
+    fmax=8000,
+):
+    """
+    Artifact fingerprint:
+    - STFT → magnitude
+    - average spectrum
+    - band-limit
+    - baseline removal (local minima)
+    - keep peaks only
+    - normalization
+    """
+
+    x = np.asarray(x, dtype=np.float32)
+    # STFT
+    f, t, Z = sps.stft(
+        x,
+        fs=sr,
+        nperseg=n_fft,
+        noverlap=n_fft - hop_length,
+        boundary=None,
+        padded=False,
+    )
+
+    S = np.abs(Z)
+    # average spectrum
+    S_mean = np.mean(S, axis=1)
+    # band-limit FIRST
+    mask = (f >= fmin) & (f <= fmax)
+    S_mean = S_mean[mask]
+    # baseline removal
+    baseline = ndi.minimum_filter1d(S_mean, size=baseline_win)
+    fingerprint = S_mean - baseline
+    # keep only peaks
+    fingerprint = np.maximum(fingerprint, 0.0)
+    # normalization (L2)
+    fingerprint /= (np.linalg.norm(fingerprint) + 1e-8)
+
+    return fingerprint.astype(np.float32)
+
 
 ################################################################################################################
 #------------------------------------------------ MANIPULATIONS ------------------------------------------------#
@@ -358,28 +409,6 @@ def apply_f0_mod(f0_traj, mod='f0_incons', hop_s=0.016):
             strength=0.4,
             dyn_strength=0.4
         )
-
-    # elif mod == 'f0_shift':
-    #     seg_len = random.uniform(0.08, 0.16)  # 80–160 ms
-    #     p_seg = random.uniform(0.4, 0.7)
-    #
-    #     f0_traj_mod = f0_segment_shift(
-    #         f0_traj,
-    #         seg_len_s=seg_len,
-    #         hop_s=hop_s,
-    #         p_seg=p_seg
-    #     )
-    #
-    # elif mod == 'f0_shuffle':
-    #     seg_len = random.uniform(0.08, 0.16)
-    #     p_shuffle = random.uniform(0.1, 0.3)
-    #
-    #     f0_traj_mod = f0_segment_shuffle(
-    #         f0_traj,
-    #         seg_len_s=seg_len,
-    #         hop_s=hop_s,
-    #         p_shuffle=p_shuffle
-    #     )
 
     else:
         f0_traj_mod = None
@@ -545,6 +574,43 @@ def energy_manipulation(y, stft_params):
     # feat = torch.stack([energy_mod, delta], dim=0)
 
     return energy_mod
+
+
+#___________________________Checkerboard Artifact_________________________#
+
+def zero_upsample(x, stride):
+    y = np.zeros(len(x) * stride, dtype=np.float32)
+    y[::stride] = x
+    return y
+
+def simulate_deconv_artifact(x, stride=8, kernel=None):
+    """
+ Simulate Deezer paper deconvo view:
+ zero-insertion upsampling + 1-stride convolution
+ """
+    if kernel is None:
+        # a short kernel; exact values are not critical for seeing the effect
+        kernel = np.array([0.2, 0.8, 1.0, 0.8, 0.2], dtype=np.float32)
+
+    y = zero_upsample(x, stride)
+    y = sps.convolve(y, kernel, mode="same")
+    return y.astype(np.float32)
+
+def simulate_multilayer(x, stride_choices=(2,3,4,5,6,8)):
+    """
+    Stack multiple simulated deconvolution layers with random strides
+    to generate more diverse recursive peaks for training.
+    """
+    y = x.copy()
+    # scegli casualmente 3-5 stride
+    n_layers = np.random.randint(1, 4)
+    strides = np.random.choice(stride_choices, size=n_layers, replace=True)
+
+    for stride in strides:
+        kernel = sps.windows.hann(2 * stride + 1).astype(np.float32)
+        kernel /= np.sum(kernel) + 1e-8
+        y = simulate_deconv_artifact(y, stride=stride, kernel=kernel)
+    return y
 
 
 

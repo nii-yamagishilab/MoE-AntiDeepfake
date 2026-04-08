@@ -127,6 +127,31 @@ class MLP_Energy(nn.Module):
         else:
             return out, emb
 
+class MLP_Checkerboard(nn.Module):
+    def __init__(self, input_size=225, return_emb=False):
+        super(MLP_Checkerboard, self).__init__()
+        self.return_emb = return_emb
+
+        self.input_size = input_size
+        self.latent_dim = 32
+
+        self.fc1 = nn.Linear(self.input_size, 128)
+        self.fc2 = nn.Linear(128, self.latent_dim)
+        self.fc3 = nn.Linear(self.latent_dim, 1)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        if self.input_size == 1:
+            x = x.unsqueeze(-1)
+        x = self.relu(self.fc1(x))
+        emb = self.relu(self.fc2(x))
+        out = self.fc3(emb).squeeze(1)
+
+        if not self.return_emb:
+            return out
+        else:
+            return out, emb
+
 # ---------------------------------------- Unused ---------------------------------------- #
 
 class CNN_1D_Model(nn.Module):

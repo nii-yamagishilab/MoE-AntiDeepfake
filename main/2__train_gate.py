@@ -37,7 +37,7 @@ def train_moe(ckpts, config):
         experts.append(model)
         models_list.append(model_type)
 
-    scaling_params_path = os.path.join(config['save_results_folder'], 'Ensemble/asv19/experts_trained_on_asv19/NEW')
+    scaling_params_path = os.path.join(config['save_results_folder'], config['scaling_params'])
     a_params = np.load(os.path.join(scaling_params_path, 'all_a.npy'))
     b_params = np.load(os.path.join(scaling_params_path, 'all_b.npy'))
     a_params = torch.tensor(a_params).to(device)
@@ -119,21 +119,31 @@ if __name__ == '__main__':
     seed_everything(config['seed'])
 
     def setup_moe_model(model_name, freeze_experts=True):
-        config['train_data'] = 'asv19'
-        config['merge'] = True
-        config['reduce_set'] = False
+        config['train_data'] = 'mix'
+        config['scaling_params'] = 'Ensemble/asv19/experts_trained_on_mix/6_experts'
 
         config['freeze_experts'] = freeze_experts
         config['model_name'] = model_name
         ckpts_path = os.path.join(config['rootpath'], 'checkpoints/experts')
 
         ckpts = [
-            os.path.join(ckpts_path, 'FLAT_PITCH_MLP.pth'),
-            os.path.join(ckpts_path, 'F0_INCONS_MLP.pth'),
-            os.path.join(ckpts_path, 'OVERSMOOTH_MLP.pth'),
-            os.path.join(ckpts_path, 'MIN_PHASE_LCNN.pth'),
-            os.path.join(ckpts_path, 'ENERGY_MLP.pth')
+            os.path.join(ckpts_path, 'MIX_FLAT_PITCH_MLP.pth'),
+            os.path.join(ckpts_path, 'MIX_F0_INCONS_MLP.pth'),
+            os.path.join(ckpts_path, 'MIX_OVERSMOOTH_MLP.pth'),
+            os.path.join(ckpts_path, 'MIX_MIN_PHASE_LCNN.pth'),
+            os.path.join(ckpts_path, 'MIX_ENERGY_MLP.pth'),
+            os.path.join(ckpts_path, 'MIX_CKRBOARD_MLP.pth')
         ]
+
+        if config['train_data'] == 'asv5':
+            config['reduce_set'] = True
+        else:
+            config['reduce_set'] = False
+
+        if config['train_data'] == 'mix':
+            config['large_scale'] = True
+        else:
+            config['large_scale'] = False
 
         print(f"\nModel name: {config['model_name']}")
         print(f"Freeze experts: {freeze_experts}\n")
@@ -141,5 +151,5 @@ if __name__ == '__main__':
         train_moe(ckpts, config)
 
 
-    setup_moe_model(model_name='MoE_Way3_Asv19_Frozen_Scaled.pth',
+    setup_moe_model(model_name='MoE_Way3_Mix_Frozen_6Exp.pth',
                     freeze_experts=True)

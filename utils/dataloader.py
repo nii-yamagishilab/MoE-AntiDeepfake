@@ -207,6 +207,9 @@ def extract_feature(x, mod, stft_params):
     elif mod == 'min_phase':
         feat = phase_extraction(x.numpy(), key='unwrapped', stft_params=stft_params)
 
+    elif mod == 'ckrboard':
+        feat = extract_ckrboard_feature(x.numpy(), n_fft=stft_params.fft_size, hop_length=stft_params.hop_size)
+
     else:
         feat = None
         print(f"Mod not recognized.")
@@ -216,7 +219,7 @@ def extract_feature(x, mod, stft_params):
 def apply_manipulation(feat, mod, stft_params):
 
     if mod in ['f0_incons', 'flat_pitch']:
-        feat_mod = apply_f0_mod(feat, mod=mod, hop_s=stft_params.hop_sec)
+        feat_mod = apply_f0_mod(feat.numpy(), mod=mod, hop_s=stft_params.hop_sec)
 
     elif mod == 'oversmooth':
         feat_mod = lsf_manipulation_smoothing(feat)
@@ -227,6 +230,10 @@ def apply_manipulation(feat, mod, stft_params):
 
     elif mod == 'min_phase':
         feat_mod = phase_manipulation(feat.numpy(), key='unwrapped', stft_params=stft_params)  # here feat is the raw wav
+
+    elif mod == 'ckrboard':
+        feat_mod = simulate_multilayer(feat.numpy())
+        feat_mod = extract_ckrboard_feature(feat_mod, n_fft=stft_params.fft_size, hop_length=stft_params.hop_size)
 
     else:
         feat_mod = None
@@ -248,7 +255,8 @@ class LoadTrainData(Dataset):
         self.config = config
         self.models_list = models_list
 
-        self.gt_f0 = os.path.join(config['rootpath'], "temp_feat", f"f0_{config['train_data']}")
+        # self.gt_f0 = os.path.join(config['rootpath'], "temp_feat", f"f0_{config['train_data']}")
+        self.gt_f0 = os.path.join(config['rootpath'], "temp_feat")
 
     def __len__(self):
         return len(self.list_IDs)
@@ -260,6 +268,8 @@ class LoadTrainData(Dataset):
             self.train_stats = self.config['train_stats_asv19']
         elif self.config['train_data'] == 'asv5':
             self.train_stats = self.config["train_stats_asv5"]
+        elif self.config['train_data'] == 'mix':
+            self.train_stats = self.config["train_stats_mix"]
         else:
             print(f"Not recognized: {self.config['train_data']}. No available normalization data.")
 
@@ -297,7 +307,8 @@ class LoadTrainData(Dataset):
 
             if mod in ['flat_pitch', 'f0_incons']:
                 filename = os.path.splitext(os.path.basename(path))[0]
-                file = os.path.join(self.gt_f0, f'{filename}.npy')
+                folder = 'f0_asv19' if 'ASVspoof2019' in path else 'f0_asv5' if 'ASVspoof5' in path else 'f0_vox'
+                file = os.path.join(self.gt_f0, folder, f'{filename}.npy')
 
                 if not os.path.exists(file):
                     feat = extract_feature(x, mod, self.stft_params)
@@ -316,7 +327,7 @@ class LoadTrainData(Dataset):
                 x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=False)
                 feat = extract_feature(x, mod, self.stft_params)
 
-            feat_dict[mod] = feat
+            feat_dict[mod] = torch.tensor(feat, dtype=torch.float32)
 
         # APPLY MANIPULATIONS + EXTRACT PROXY FEATURES WHEN NEEDED
 
@@ -330,7 +341,7 @@ class LoadTrainData(Dataset):
 
                 if idx % 2 == 0:
 
-                    if mod in ['min_phase', 'energy']:
+                    if mod in ['min_phase', 'energy', 'ckrboard']:
                         feat_mod = apply_manipulation(x, mod=mod, stft_params=self.stft_params)
                     else:
                         feat_mod = apply_manipulation(feat, mod=mod, stft_params=self.stft_params)
@@ -394,7 +405,7 @@ class LoadTrainData(Dataset):
                 for mod in selected_mods:
                     feat = feat_dict[mod]
 
-                    if mod in ['min_phase', 'energy']:
+                    if mod in ['min_phase', 'energy', 'ckrboard']:
                         feat_mod = apply_manipulation(x, mod=mod, stft_params=self.stft_params)
                     else:
                         feat_mod = apply_manipulation(feat, mod=mod, stft_params=self.stft_params)
@@ -431,7 +442,6 @@ class LoadTrainData(Dataset):
                         feat = torch.tensor(feat, dtype=torch.float32)
                         feat = (feat - mean) / (std + 1e-8)
 
-
                 elif mod == 'energy':
                     feat = extract_proxy_scalars_energy(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
                     mean = torch.tensor(self.train_stats['mean_energy'])
@@ -464,7 +474,7 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         self.config = config
 
         self.selected_mods = config['selected']
-        self.gt_f0 = os.path.join(config['rootpath'], "temp_feat", f"f0_{config['test_data']}")
+        self.gt_f0 = os.path.join(config['rootpath'], "temp_feat")
 
     def __len__(self):
         return len(self.list_IDs)
@@ -473,9 +483,11 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         path = self.list_IDs[idx]
 
         if self.config['train_data'] == 'asv19':
-            self.train_stats = self.config["train_stats_asv19"]
+            self.train_stats = self.config['train_stats_asv19']
         elif self.config['train_data'] == 'asv5':
             self.train_stats = self.config["train_stats_asv5"]
+        elif self.config['train_data'] == 'mix':
+            self.train_stats = self.config["train_stats_mix"]
         else:
             print(f"Not recognized: {self.config['train_data']}. No available normalization data.")
 
@@ -505,7 +517,9 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         invalid_mods = set()
         for mod in mod_list:
             if mod in ['flat_pitch', 'f0_incons']:
-                file = os.path.join(self.gt_f0, f'{track_name}.npy')
+                filename = os.path.splitext(os.path.basename(path))[0]
+                folder = 'f0_asv19' if 'ASVspoof2019' in path else 'f0_asv5' if 'ASVspoof5' in path else 'f0_vox'
+                file = os.path.join(self.gt_f0, folder, f'{filename}.npy')
 
                 if not os.path.exists(file):
                     x = load_audio_track(path, trim=True, normalize=True)  # trim=True !
@@ -592,7 +606,7 @@ class LoadEvaluationData(Dataset):
         self.models_list = models_list
         self.config = config
 
-        self.gt_f0 = os.path.join(config['rootpath'], "temp_feat", f"f0_{config['test_data']}")
+        self.gt_f0 = os.path.join(config['rootpath'], "temp_feat")
 
     def __len__(self):
         return len(self.list_IDs)
@@ -600,12 +614,14 @@ class LoadEvaluationData(Dataset):
     def __getitem__(self, idx):
         path = self.list_IDs[idx]
 
-        if self.train_domain == 'asv19':
-            self.train_stats = self.config["train_stats_asv19"]
-        elif self.train_domain == 'asv5':
+        if self.config['train_data'] == 'asv19':
+            self.train_stats = self.config['train_stats_asv19']
+        elif self.config['train_data'] == 'asv5':
             self.train_stats = self.config["train_stats_asv5"]
+        elif self.config['train_data'] == 'mix':
+            self.train_stats = self.config["train_stats_mix"]
         else:
-            print(f"Not recognized: {self.train_domain}. No available normalization data.")
+            print(f"Not recognized: {self.config['train_data']}. No available normalization data.")
 
         label = self.labels[idx]
         track_name = os.path.splitext(os.path.basename(path))[0]
@@ -637,7 +653,9 @@ class LoadEvaluationData(Dataset):
         for mod in mod_list:
 
             if mod in ['flat_pitch', 'f0_incons']:
-                file = os.path.join(self.gt_f0, f'{track_name}.npy')
+                filename = os.path.splitext(os.path.basename(path))[0]
+                folder = 'f0_asv19' if 'ASVspoof2019' in path else 'f0_asv5' if 'ASVspoof5' in path else 'f0_vox'
+                file = os.path.join(self.gt_f0, folder, f'{filename}.npy')
 
                 if not os.path.exists(file):
                     x = load_audio_track(path, trim=True, normalize=True)  # trim=True !

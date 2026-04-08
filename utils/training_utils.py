@@ -204,7 +204,6 @@ def train_epoch_compound(train_loader, model, optim, losses, config, device):
         num_tot_real += real_mask.sum().item()
 
         batch_probs, gate_probs = model(batch_x)
-        # batch_probs = batch_probs[:, 1]
         batch_probs = batch_probs.clamp(1e-8, 1 - 1e-8)
         gate_probs = gate_probs.clamp(1e-8, 1 - 1e-8)
 
@@ -215,7 +214,7 @@ def train_epoch_compound(train_loader, model, optim, losses, config, device):
         log_gate_probs = torch.log(gate_probs + 1e-8)
         if fake_mask.any():
             batch_attr_loss = losses['nll'](log_gate_probs[fake_mask],
-                                            batch_k[fake_mask].unsqueeze(1))
+                                            batch_k[fake_mask])
         else:
             batch_attr_loss = torch.tensor(0.0, device=batch_x.device)
 
@@ -288,7 +287,7 @@ def valid_epoch_compound(data_loader, model, losses, config, device):
         log_gate_probs = torch.log(gate_probs + 1e-8)
         if fake_mask.any():
             batch_attr_loss = losses['nll'](log_gate_probs[fake_mask],
-                                            batch_k[fake_mask].unsqueeze(1))
+                                            batch_k[fake_mask])
         else:
             batch_attr_loss = torch.tensor(0.0, device=batch_x.device)
 
