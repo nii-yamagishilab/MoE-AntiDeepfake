@@ -88,19 +88,21 @@ if __name__ == '__main__':
 
     # --------------------- PLEASE DEFINE ----------------------#
 
-    config['mod'] = 'min_phase'
+    config['mod'] = 'ckrboard'
     config['sanity_check'] = False
     config['target_check'] = True
 
     config['train_data'] = 'mix'
-    config['test_data'] = 'asv15'
+    config['test_data'] = 'asv5'
     config['eval_all'] = False
 
-    config['model'] = 'LCNN'
-    model_classes = [LCNN]
+    config['model'] = 'MLP'
+    model_classes = [MLP_Checkerboard]
 
     model_names = [
-        f'MIX_{config['mod'].upper()}_{config['model'].upper()}.pth',
+        # f'{config['train_data'].upper()}_{config['mod'].upper()}_{config['model'].upper()}.pth',
+        # f'{config['train_data'].upper()}_F0_JOINT_{config['model'].upper()}.pth',
+        f'{config['train_data'].upper()}_FILTERING_{config['model'].upper()}.pth',
     ]
 
     # ------------------------- Thanks -------------------------#
@@ -109,19 +111,29 @@ if __name__ == '__main__':
         if config['test_data'] == 'asv19':
             config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12']
         elif config['test_data'] == 'asv5':
-            # config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12', 'A14']
             config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08',
                                   'A09', 'A10', 'A11', 'A12', 'A14',
                                   'A17', 'A19', 'A21', 'A22', 'A28', 'A29']
         elif config['test_data'] == 'wf':
             config['selected'] = ["tts_ljspeech", "ljspeech_full_band_melgan", "ljspeech_hifiGAN", "ljspeech_melgan",
                                   "ljspeech_melgan_large", "ljspeech_multi_band_melgan", "ljspeech_parallel_wavegan",
-                                  "ljspeech_waveglow", "jsut_multi_band_melgan", "jsut_parallel_wavegan"]
+                                  "ljspeech_waveglow"]
         elif config['test_data'] == 'sc':
             config['selected'] = ['a01', 'a02', 'a03', 'a04', 'a05', 'a06', 'a07', 'a08', 'a09', 'a10', 'a11',
                                   'a12', 'a13', 'a14', 'a15', 'a16', 'a17', 'a18', 'a19', 'a20', 'a21', 'a22', 'a23']
         elif config['test_data'] == 'asv15':
             config['selected'] = ['S3', 'S4', 'S10']
+        elif config['test_data'] == 'mlaad':
+            config['selected'] = ['Mars5', 'MatchaTTS', 'MeloTTS', 'Metavoice-1B', 'OpenVoiceV2', 'WhisperSpeech', 'e2-tts',
+                                  'f5-tts', 'facebook_mms-tts-eng', 'griffin_lim', 'microsoft_speecht5_tts', 'optispeech',
+                                  'parler_tts_large_v1', 'parler_tts_mini_v0.1', 'parler_tts_mini_v1', 'suno_bark-small',
+                                  'suno_bark', 'tts_models_en_blizzard2013_capacitron-t2-c50', 'tts_models_en_ek1_tacotron2',
+                                  'tts_models_en_jenny_jenny', 'tts_models_en_ljspeech_fast_pitch', 'tts_models_en_ljspeech_glow-tts',
+                                  'tts_models_en_ljspeech_neural_hmm', 'tts_models_en_ljspeech_overflow', 'tts_models_en_ljspeech_speedy-speech',
+                                  'tts_models_en_ljspeech_tacotron2-DCA', 'tts_models_en_ljspeech_tacotron2-DDC', 'tts_models_en_ljspeech_tacotron2-DDC_ph',
+                                  'tts_models_en_ljspeech_vits--neon', 'tts_models_en_ljspeech_vits', 'tts_models_en_multi-dataset_tortoise-v2',
+                                  'tts_models_en_sam_tacotron-DDC', 'tts_models_multilingual_multi-dataset_bark', 'tts_models_multilingual_multi-dataset_xtts_v1.1',
+                                  'tts_models_multilingual_multi-dataset_xtts_v2', 'vixTTS']
         else:
             print("Test dataset not supported. \n")
             sys.exit()

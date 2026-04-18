@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=eval_expert
-#SBATCH --out="txt/E_PHASE.out.txt"
+#SBATCH --out="txt/E_MIX_FILTERING_asv5.out.txt"
 #SBATCH --time=03:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1

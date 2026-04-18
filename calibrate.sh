@@ -1,10 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=calib_exp
-#SBATCH --out="txt/C_exp_trial_2.out.txt"
+#SBATCH --job-name=CLBRT
+#SBATCH --out="txt/C_mlaad_5exp_Cset_asv19_eval.out.txt"
 #SBATCH --time=3-00:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1
-
 
 # Log job start info
 printf "\n"
@@ -22,7 +21,7 @@ conda activate moe_env || { echo "Failed to activate Conda environment"; exit 1;
 printf "\n"
 echo "Starting Python script..."
 printf "\n"
-python main/4__calibrated_ensemble.py || { echo "Python script failed"; exit 1; }
+python main/4__calibrated_ensemble_v2.py || { echo "Python script failed"; exit 1; }
 
 # Log job end info
 echo "Job finished at: $(date)"

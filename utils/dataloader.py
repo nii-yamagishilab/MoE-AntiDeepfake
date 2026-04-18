@@ -5,7 +5,6 @@ from utils.make_artifacts import *
 from scipy.ndimage import gaussian_filter
 from utils.model_utils import MANIPULATIONS_REGISTRY
 
-
 import warnings
 warnings.simplefilter(action='ignore', category=UserWarning)
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -208,17 +207,19 @@ def extract_feature(x, mod, stft_params):
         feat = phase_extraction(x.numpy(), key='unwrapped', stft_params=stft_params)
 
     elif mod == 'ckrboard':
-        feat = extract_ckrboard_feature(x.numpy(), n_fft=stft_params.fft_size, hop_length=stft_params.hop_size)
+        feat = extract_upsampling_feature(x.numpy(), n_fft=stft_params.fft_size, hop_length=stft_params.hop_size)
 
     else:
         feat = None
-        print(f"Mod not recognized.")
+        print(mod)
+        print(f"Mod not recognized. \n")
 
     return feat
 
 def apply_manipulation(feat, mod, stft_params):
-
     if mod in ['f0_incons', 'flat_pitch']:
+        if random.random() < 0.7:  # if training jointly (flat_pitch + f0_incons)
+            mod = 'flat_pitch'
         feat_mod = apply_f0_mod(feat.numpy(), mod=mod, hop_s=stft_params.hop_sec)
 
     elif mod == 'oversmooth':
@@ -232,8 +233,8 @@ def apply_manipulation(feat, mod, stft_params):
         feat_mod = phase_manipulation(feat.numpy(), key='unwrapped', stft_params=stft_params)  # here feat is the raw wav
 
     elif mod == 'ckrboard':
-        feat_mod = simulate_multilayer(feat.numpy())
-        feat_mod = extract_ckrboard_feature(feat_mod, n_fft=stft_params.fft_size, hop_length=stft_params.hop_size)
+        feat_mod = simulate_upsampling_artifact(feat.numpy())
+        feat_mod = extract_upsampling_feature(feat_mod, n_fft=stft_params.fft_size, hop_length=stft_params.hop_size)
 
     else:
         feat_mod = None
@@ -356,8 +357,8 @@ class LoadTrainData(Dataset):
                     feat = extract_proxy_scalars_F0(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
 
                     if mod == 'f0_incons':
-                        mean = torch.tensor(self.train_stats['mean_incons'])
-                        std = torch.tensor(self.train_stats['std_incons'])
+                        mean = torch.tensor(self.train_stats['mean_f0_joint'])
+                        std = torch.tensor(self.train_stats['std_f0_joint'])
                     else:
                         mean = torch.tensor(self.train_stats['mean_flat'])
                         std = torch.tensor(self.train_stats['std_flat'])
@@ -429,8 +430,8 @@ class LoadTrainData(Dataset):
                     feat = extract_proxy_scalars_F0(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
 
                     if mod == 'f0_incons':
-                        mean = torch.tensor(self.train_stats['mean_incons'])
-                        std = torch.tensor(self.train_stats['std_incons'])
+                        mean = torch.tensor(self.train_stats['mean_f0_joint'])
+                        std = torch.tensor(self.train_stats['std_f0_joint'])
                     else:
                         mean = torch.tensor(self.train_stats['mean_flat'])
                         std = torch.tensor(self.train_stats['std_flat'])
@@ -473,7 +474,7 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         self.models_list = models_list
         self.config = config
 
-        self.selected_mods = config['selected']
+        self.mod = config['selected']
         self.gt_f0 = os.path.join(config['rootpath'], "temp_feat")
 
     def __len__(self):
@@ -494,8 +495,10 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         mod_list = []
         label = 0
         track_name = os.path.splitext(os.path.basename(path))[0]
+        dummy_lb = -1
 
-        if len(self.selected_mods) > 1 or len(self.models_list) > 1:
+        # if len(self.mod) > 1 or len(self.models_list) > 1:
+        if self.mod == 'all':
             registry = MANIPULATIONS_REGISTRY.copy()
             for model_type in self.models_list:
                 manipulation = None
@@ -508,7 +511,10 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
                     raise ValueError(f"No manipulation found for model {model_type}")
                 mod_list.append(manipulation)
         else:
-            mod_list.append(self.selected_mods[0])
+            if idx == 0:
+                self.mod = [self.mod]
+            mod_list.append(self.mod[0])
+
 
         # EXTRACT FEATURES
         x = load_audio_track(path, trim=False, normalize=True)
@@ -537,21 +543,21 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
 
             else:
                 x = prepare_audio_window(x, (self.win_len * self.fs), is_eval=True)
-                feat = extract_feature(x.numpy(), mod, self.stft_params)
+                feat = extract_feature(x, mod, self.stft_params)
 
-            feat_dict[mod] = feat
+            feat_dict[mod] = torch.tensor(feat, dtype=torch.float32)
 
         # APPLY SELECTED MANIPULATION(S) + EXTRACT PROXY FEATURES WHEN NEEDED
 
-        if idx % 2 == 0 and len(self.selected_mods) > 0:
+        if idx % 2 == 0 and len(self.mod) > 0:
 
-            for mod in self.selected_mods:
+            for mod in self.mod:
                 feat = feat_dict[mod]
 
-                if mod in ['min_phase', 'energy']:
-                    feat_mod = apply_manipulation(x.numpy(), mod=mod, stft_params=self.stft_params)
+                if mod in ['min_phase', 'energy', 'ckrboard']:
+                    feat_mod = apply_manipulation(x, mod=mod, stft_params=self.stft_params)
                 else:
-                    feat_mod = apply_manipulation(feat.numpy() if isinstance(feat, torch.Tensor) else feat, mod=mod, stft_params=self.stft_params)
+                    feat_mod = apply_manipulation(feat, mod=mod, stft_params=self.stft_params)
 
                 feat_dict[mod] = torch.tensor(feat_mod, dtype=torch.float32)
 
@@ -566,35 +572,48 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
 
             feat = feat_dict[mod]
             if mod in ['f0_incons', 'flat_pitch']:
-                feat_new = extract_proxy_scalars_F0(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
+                feat = extract_proxy_scalars_F0(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
 
                 if mod == 'f0_incons':
-                    mean = torch.tensor(self.train_stats['mean_incons'])
-                    std = torch.tensor(self.train_stats['std_incons'])
+                    mean = torch.tensor(self.train_stats['mean_f0_joint'])
+                    std = torch.tensor(self.train_stats['std_f0_joint'])
                 else:
                     mean = torch.tensor(self.train_stats['mean_flat'])
                     std = torch.tensor(self.train_stats['std_flat'])
 
-                if np.all(feat_new == 0.0):
+                if np.all(feat == 0.0):
                     label = -1
-                    feat_new = torch.zeros(10, dtype=torch.float32)
+                    feat = torch.zeros(10, dtype=torch.float32)
                 else:
-                    feat_new = torch.tensor(feat_new, dtype=torch.float32)
-                    feat_new = (feat_new - mean) / (std + 1e-8)
+                    feat = torch.tensor(feat, dtype=torch.float32)
+                    feat = (feat - mean) / (std + 1e-8)
 
-                feat_new = torch.tensor(feat_new, dtype=torch.float32)
+            elif mod == 'energy':
+                feat = extract_proxy_scalars_energy(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
+                mean = torch.tensor(self.train_stats['mean_energy'])
+                std = torch.tensor(self.train_stats['std_energy'])
+                feat = torch.tensor(feat, dtype=torch.float32)
+                feat = (feat - mean) / (std + 1e-8)
+
+            elif mod == 'oversmooth':
+                feat = extract_proxy_scalars_LSF(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
+                feat = torch.tensor(feat, dtype=torch.float32)
+                mean = torch.tensor(self.train_stats['mean_smooth'])
+                std = torch.tensor(self.train_stats['std_smooth'])
+                feat = (feat - mean) / (std + 1e-8)
 
             else:
-                feat_new = torch.tensor(feat, dtype=torch.float32)
+                feat = torch.tensor(feat, dtype=torch.float32)
 
-            feat_dict[mod] = feat_new
+            feat_dict[mod] = feat
 
-        return feat_dict, label, track_name
+        return feat_dict, label, track_name, dummy_lb
 
 class LoadEvaluationData(Dataset):
-    def __init__(self, list_IDs, labels, models_list, config):
+    def __init__(self, list_IDs, labels, attacks, models_list, config):
         self.list_IDs = list_IDs
         self.labels = labels
+        self.attacks = attacks
 
         self.fs = config['fs']
         self.win_len = config['win_len']
@@ -624,6 +643,10 @@ class LoadEvaluationData(Dataset):
             print(f"Not recognized: {self.config['train_data']}. No available normalization data.")
 
         label = self.labels[idx]
+        if self.attacks is not None:
+            attack = self.attacks[idx]
+        else:
+            attack = -1
         track_name = os.path.splitext(os.path.basename(path))[0]
 
         mod_list = []
@@ -692,8 +715,8 @@ class LoadEvaluationData(Dataset):
                 feat = extract_proxy_scalars_F0(feat.numpy() if isinstance(feat, torch.Tensor) else feat)
 
                 if mod == 'f0_incons':
-                    mean = torch.tensor(self.train_stats['mean_incons'])
-                    std = torch.tensor(self.train_stats['std_incons'])
+                    mean = torch.tensor(self.train_stats['mean_f0_joint'])
+                    std = torch.tensor(self.train_stats['std_f0_joint'])
                 else:
                     mean = torch.tensor(self.train_stats['mean_flat'])
                     std = torch.tensor(self.train_stats['std_flat'])
@@ -726,7 +749,7 @@ class LoadEvaluationData(Dataset):
 
             feat_dict[mod] = feat
 
-        return feat_dict, label, track_name
+        return feat_dict, label, track_name, attack
 
 #------------------------------ PoC STUFF ----------------------------#
 

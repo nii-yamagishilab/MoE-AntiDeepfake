@@ -52,9 +52,7 @@ mlaad:
   fake_path: '/Database/MLAAD/v5/fake'
   real_path: '/Database/M-AILABS'
   protocols: 'protocol_full.txt'
-  filter_column: 5
-  gen_column: 4
-  path_column: 1
+  gen_column: 'generator'
   file_dir: 'wav_16k'
 
 asv15:

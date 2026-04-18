@@ -81,21 +81,10 @@ def run_calibration(experts, models_list, config):
         a, b = platt_scaling(val_loader, expert)
         kde_H1, kde_H0 = calibrate_expert(calib_loader, expert, a, b)
 
-        # print(f"idx: {i}")
-        # if i == 0:
-        #     temp_kde_H1 = kde_H1
-        #     temp_kde_H0 = kde_H0
         all_a.append(a)
         all_b.append(b)
         all_kde_H1.append(kde_H1)
         all_kde_H0.append(kde_H0)
-        # if i != 1:
-        #     all_kde_H1.append(kde_H1)
-        #     all_kde_H0.append(kde_H0)
-        # else:
-        #     print("asd"*10)
-        #     all_kde_H1.append(temp_kde_H1)
-        #     all_kde_H0.append(temp_kde_H0)
         print()
 
     return all_a, all_b, all_kde_H1, all_kde_H0
@@ -140,9 +129,6 @@ def run_evaluation(experts, eval_loader, all_a, all_b, all_H1, all_H0, config):
         })
 
         print()
-
-        if i >= 1:
-            break
 
     print(f"\nComputing ensemble scores...")
 
@@ -294,22 +280,15 @@ if __name__ == '__main__':
             os.path.join(ckpt_exp_path, 'ENERGY_MLP.pth'),
             os.path.join(ckpt_exp_path, 'CKRBOARD_MLP.pth')
         ]
-    elif config['train_data'] == 'asv5':
-        ckpts_experts = [
-            os.path.join(ckpt_exp_path, 'FLAT_PITCH_MLP_ASV5.pth'),
-            os.path.join(ckpt_exp_path, 'F0_INCONS_MLP_ASV5.pth'),
-            os.path.join(ckpt_exp_path, 'OVERSMOOTH_GRU_ASV5.pth'),
-            os.path.join(ckpt_exp_path, 'MIN_PHASE_LCNN_ASV5.pth'),
-            os.path.join(ckpt_exp_path, 'ENERGY_LCNN_ASV5.pth')
-        ]
     else:
         ckpts_experts = [
-            os.path.join(ckpt_exp_path, 'MIX_FLAT_PITCH_MLP.pth'),
-            os.path.join(ckpt_exp_path, 'MIX_F0_INCONS_MLP.pth'),
+            # os.path.join(ckpt_exp_path, 'MIX_FLAT_PITCH_MLP.pth'),
+            # os.path.join(ckpt_exp_path, 'MIX_F0_INCONS_MLP.pth'),
+            os.path.join(ckpt_exp_path, 'MIX_F0_JOINT_MLP.pth'),
             os.path.join(ckpt_exp_path, 'MIX_OVERSMOOTH_MLP.pth'),
             os.path.join(ckpt_exp_path, 'MIX_MIN_PHASE_LCNN.pth'),
             os.path.join(ckpt_exp_path, 'MIX_ENERGY_MLP.pth'),
-            os.path.join(ckpt_exp_path, 'MIX_CKRBOARD_MLP.pth')
+            os.path.join(ckpt_exp_path, 'MIX_TONAL_MLP.pth')
         ]
 
     if config['test_data'] == 'asv19':
@@ -325,7 +304,7 @@ if __name__ == '__main__':
     config['save_folder'] = os.path.join(save_path,
                                          config['test_data'],
                                          f'experts_trained_on_{config["train_data"]}',
-                                         'temp/trials5')
+                                         'temp/trials0')
     print(f"Save folder: {config['save_folder']}")
 
     config['target_check'] = False

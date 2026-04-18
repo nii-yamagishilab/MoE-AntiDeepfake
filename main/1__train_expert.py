@@ -45,7 +45,7 @@ class Supervised_ContrastiveLoss(nn.Module):
 
 def select_model(model_name):
     if model_name == 'mlp' and config['mod'] == 'flat_pitch':
-        model = MLP_Flat_Pitch(return_emb=True)
+        model = MLP_F0_Incons(return_emb=True)
     elif model_name == 'mlp' and config['mod'] == 'f0_incons':
         model = MLP_F0_Incons(return_emb=True)
     elif model_name == 'mlp' and config['mod'] == 'energy':
@@ -132,9 +132,10 @@ if __name__ == '__main__':
     config['model'] = 'mlp'
     config['mod'] = 'ckrboard'
 
-    # ----------------------------- Thanks --------------------------- #
+    # config["model_name"] = f'{config['train_data'].upper()}_{config['mod'].upper()}_{config["model"].upper()}_v2.pth'
+    config["model_name"] = f'{config['train_data'].upper()}_FILTERING_{config["model"].upper()}.pth'
 
-    config["model_name"] = f'{config['train_data'].upper()}_{config['mod'].upper()}_{config["model"].upper()}.pth'
+    # ----------------------------- Thanks --------------------------- #
 
     if config['train_data'] == 'asv5':
         config['reduce_set'] = True

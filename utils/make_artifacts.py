@@ -214,9 +214,9 @@ def energy_extraction(y, stft_params):
     return energy
 
 
-#___________________________Checkerboard Artifact_________________________#
+#_______________________________________Upsampling Artifacts___________________________________#
 
-def extract_ckrboard_feature(
+def extract_upsampling_feature(
     x,
     sr=16000,
     n_fft=512,
@@ -226,17 +226,9 @@ def extract_ckrboard_feature(
     fmax=8000,
 ):
     """
-    Artifact fingerprint:
-    - STFT → magnitude
-    - average spectrum
-    - band-limit
-    - baseline removal (local minima)
-    - keep peaks only
-    - normalization
+    Artifact fingerprint: basically an enhanced spectrum
     """
-
     x = np.asarray(x, dtype=np.float32)
-    # STFT
     f, t, Z = sps.stft(
         x,
         fs=sr,
@@ -246,19 +238,24 @@ def extract_ckrboard_feature(
         padded=False,
     )
 
+    # FOR TONAL ARTIFACTS
     S = np.abs(Z)
-    # average spectrum
-    S_mean = np.mean(S, axis=1)
-    # band-limit FIRST
+    S_mean = np.mean(S, axis=1)  # average spectrum
     mask = (f >= fmin) & (f <= fmax)
-    S_mean = S_mean[mask]
-    # baseline removal
-    baseline = ndi.minimum_filter1d(S_mean, size=baseline_win)
+    S_mean = S_mean[mask] # band-limit
+    baseline = ndi.minimum_filter1d(S_mean, size=baseline_win) # baseline removal
     fingerprint = S_mean - baseline
-    # keep only peaks
-    fingerprint = np.maximum(fingerprint, 0.0)
-    # normalization (L2)
-    fingerprint /= (np.linalg.norm(fingerprint) + 1e-8)
+    fingerprint = np.maximum(fingerprint, 0.0) # keep only peaks
+    fingerprint /= (np.linalg.norm(fingerprint) + 1e-8) # normalization (L2)
+
+    # # FOR FILTERING ARTIFACTS
+    # S = np.log(np.abs(Z) + 1e-8) # log magnitude
+    # S_mean = np.mean(S, axis=1) # average spectrum
+    # mask = (f >= fmin) & (f <= fmax)
+    # S_mean = S_mean[mask] # band-limit
+    # baseline = ndi.gaussian_filter1d(S_mean, sigma=baseline_win / 4) # smooth baseline (~clean envelope)
+    # fingerprint = S_mean - baseline # deviation from baseline (signed)
+    # fingerprint /= (np.linalg.norm(fingerprint) + 1e-8)
 
     return fingerprint.astype(np.float32)
 
@@ -576,64 +573,59 @@ def energy_manipulation(y, stft_params):
     return energy_mod
 
 
-#___________________________Checkerboard Artifact_________________________#
+#_______________________________________Upsampling Artifacts___________________________________#
 
-def zero_upsample(x, stride):
-    y = np.zeros(len(x) * stride, dtype=np.float32)
-    y[::stride] = x
+# Tonal artifact
+def add_sparse_resonances(x, sr, n_peaks=2):
+    y = np.zeros_like(x)
+
+    for _ in range(n_peaks):
+        freq = np.random.uniform(1000, 8000)  # same band as your feature
+        Q = np.random.uniform(30, 80)         # very sharp peaks
+
+        b, a = sps.iirpeak(freq / (sr / 2), Q=Q)
+        peak = sps.lfilter(b, a, x)
+
+        gain = np.random.uniform(2.0, 5.0)    # dominant amplitude
+        y += gain * peak
+
     return y
 
-def simulate_deconv_artifact(x, stride=8, kernel=None):
-    """
- Simulate Deezer paper deconvo view:
- zero-insertion upsampling + 1-stride convolution
- """
-    if kernel is None:
-        # a short kernel; exact values are not critical for seeing the effect
-        kernel = np.array([0.2, 0.8, 1.0, 0.8, 0.2], dtype=np.float32)
+# Filtering Artifact
+def apply_random_filter_coloration(x, sr):
+    # Low-pass filter
+    cutoff = np.random.uniform(4000, 6000)
+    order = np.random.randint(2, 8)
+    b, a = sps.butter(order, cutoff / (sr / 2), btype='low')
+    #plot_filter_response(b, a, sr, "Low-pass")
+    y = sps.lfilter(b, a, x)
 
-    y = zero_upsample(x, stride)
-    y = sps.convolve(y, kernel, mode="same")
+    if np.random.rand() < 0.85:
+        center = np.random.uniform(1500, 6000)
+        Q = np.random.uniform(8.0, 18.0)
+        b_notch, a_notch = sps.iirnotch(center / (sr / 2), Q)
+        y = sps.lfilter(b_notch, a_notch, y)
+
+    return y
+
+def simulate_upsampling_artifact(x, sr=16000):
+    # Step 1: kill most of the original spectrum
+    y = x * 0.05
+
+    # Step 2: inject sparse dominant peaks / generate filtered version
+
+    n_peaks = np.random.randint(1, 3)
+    mod = add_sparse_resonances(x, sr, n_peaks=n_peaks)
+    # mod = apply_random_filter_coloration(x, sr)
+
+    # Step 3: combine
+    y = y + mod
+
+    # Step 4: slight nonlinearity (increase contrast)
+    y = np.sign(y) * (np.abs(y) ** 1.5)
+
+    # normalize
+    y /= np.max(np.abs(y)) + 1e-8
     return y.astype(np.float32)
 
-def simulate_multilayer(x, stride_choices=(2,3,4,5,6,8)):
-    """
-    Stack multiple simulated deconvolution layers with random strides
-    to generate more diverse recursive peaks for training.
-    """
-    y = x.copy()
-    # scegli casualmente 3-5 stride
-    n_layers = np.random.randint(1, 4)
-    strides = np.random.choice(stride_choices, size=n_layers, replace=True)
 
-    for stride in strides:
-        kernel = sps.windows.hann(2 * stride + 1).astype(np.float32)
-        kernel /= np.sum(kernel) + 1e-8
-        y = simulate_deconv_artifact(y, stride=stride, kernel=kernel)
-    return y
-
-
-
-# import matplotlib.pyplot as plt
-#
-# plt.imshow(mask_old.squeeze(), origin='lower', aspect='auto')
-# plt.show()
-# plt.imshow(mask_new.squeeze(), origin='lower', aspect='auto')
-# plt.show()
-#
-# plt.imshow(mag, origin='lower', aspect='auto')
-# plt.show()
-# plt.imshow(mag_new.squeeze(), origin='lower', aspect='auto')
-# plt.show()
-#
-# plt.imshow((mag-mag_new.squeeze()), origin='lower', aspect='auto')
-# plt.show()
-#
-# plt.imshow(torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0), origin='lower', aspect='auto')
-# plt.show()
-# plt.imshow(torchaudio.functional.amplitude_to_DB(mag_new.squeeze(), multiplier=20.0, amin=1e-10, db_multiplier=1.0), origin='lower', aspect='auto')
-# plt.show()
-#
-# ciao = torchaudio.functional.amplitude_to_DB(mag, multiplier=20.0, amin=1e-10, db_multiplier=1.0) - torchaudio.functional.amplitude_to_DB(mag_new.squeeze(), multiplier=20.0, amin=1e-10, db_multiplier=1.0)
-# plt.imshow(ciao, origin='lower', aspect='auto')
-# plt.show()

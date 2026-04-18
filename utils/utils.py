@@ -19,12 +19,13 @@ def compute_metrics_v2(labels, scores):
     fpr, tpr, thresholds = roc_curve(labels, scores)
     rocauc = auc(fpr, tpr)
     fnr = 1 - tpr
-
-    # Interpolate
     eer_func = interp1d(fpr, fnr)
     eer = brentq(lambda x: eer_func(x) - x, 0., 1.)
 
-    return rocauc, eer
+    preds = (scores >= 0).astype(int)
+    acc = balanced_accuracy_score(labels, preds)
+
+    return rocauc, eer, acc
 
 
 def init_weights(module):

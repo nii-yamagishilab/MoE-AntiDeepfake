@@ -144,7 +144,7 @@ def load_training_data(models_list, config):
 def load_evaluation_data(models_list, config):
 
     ds = config[config['test_data']]
-    nb_class_samples = 1000
+    # nb_class_samples = 1000
 
     if config['sanity_check']:
         print("Test on manipulated data for sanity checking.")
@@ -161,7 +161,6 @@ def load_evaluation_data(models_list, config):
         df_eval = pd.DataFrame(df_eval.values.repeat(2, axis=0), columns=df_eval.columns)
         file_eval = list(df_eval['path'])
         eval_set = LoadEvalData_MoE_SanityCheck(list_IDs=file_eval, models_list=models_list, config=config)
-
     else:
         print("Test on target deepfake data.")
 
@@ -174,19 +173,18 @@ def load_evaluation_data(models_list, config):
                 "generator": [os.path.basename(os.path.dirname(p)) for p in fake_data]
             })
 
-            nb_class_samples = 300
+            # nb_class_samples =300
             target_df = config['selected']
             print(f"Target generator: {target_df}")
 
             df_fake = (
                 df_fake[df_fake['generator'].isin(target_df)]
-                .groupby('generator', group_keys=False)
-                .apply(lambda x: x.sample(n=nb_class_samples, random_state=42))
+                # .groupby('generator', group_keys=False).apply(lambda x: x.sample(n=nb_class_samples, random_state=42))
             )
-            n_classes = df_fake['generator'].nunique()
+            # n_classes = df_fake['generator'].nunique()
 
             real_data = glob('/Database/M-AILABS/*/*/*/*/*/*/*.wav')
-            real_data = random.sample(real_data, nb_class_samples * n_classes)
+            # real_data = random.sample(real_data, nb_class_samples * n_classes)
             real_labels = [0] * len(real_data)
             real_generators = ['-'] * len(real_data)
 
@@ -209,14 +207,13 @@ def load_evaluation_data(models_list, config):
             target_df = config['selected']
             print(f"Target generator: {target_df}")
 
-            df_fake_sampled = (
+            df_fake = (
                 df_fake[df_fake[ds['gen_column']].isin(target_df)]
-                .groupby(ds['gen_column'], group_keys=False)
-                .apply(lambda x: x.sample(n=nb_class_samples, random_state=42))
+                # .groupby(ds['gen_column'], group_keys=False).apply(lambda x: x.sample(n=nb_class_samples, random_state=42))
             )
-            n_classes = df_fake_sampled[ds['gen_column']].nunique()
-            df_real_sampled = df_real.sample(n=nb_class_samples * n_classes, random_state=42)
-            df_eval = pd.concat([df_fake_sampled, df_real_sampled])
+            # n_classes = df_fake[ds['gen_column']].nunique()
+            # df_real = df_real.sample(n=nb_class_samples * n_classes, random_state=42)
+            df_eval = pd.concat([df_fake, df_real])
 
         elif config['test_data'] == 'sc':
             df_train = pd.read_csv(os.path.join(ds['base_path'], ds['meta_train']), sep=',', header=None)
@@ -236,19 +233,16 @@ def load_evaluation_data(models_list, config):
             print(f"Target generator: {target_df}")
 
             dfs = []
-            df_real_pool = df_test[df_test['label'] == 0]
-            n_requested = nb_class_samples * len(target_df)
-            n_available = len(df_real_pool)
-            df_real = df_real_pool.sample(
-                n=min(n_requested, n_available),
-                random_state=42
-            )
+            df_real = df_test[df_test['label'] == 0]
+            # n_requested = nb_class_samples * len(target_df)
+            # n_available = len(df_real_pool)
+            # df_real = df_real.sample(n=min(n_requested, n_available),random_state=42)
             dfs.append(df_real)
 
             df_fake = (
                 df_all[df_all[ds['gen_column']].isin(target_df)]
-                .groupby(ds['gen_column'], group_keys=False)
-                .sample(n=nb_class_samples, random_state=42))
+                # .groupby(ds['gen_column'], group_keys=False).sample(n=nb_class_samples, random_state=42)
+            )
             dfs.append(df_fake)
 
             df_eval = pd.concat(dfs, ignore_index=True)
@@ -263,64 +257,63 @@ def load_evaluation_data(models_list, config):
 
             dfs = []
 
-            df_real_pool = df_test[df_test['label'] == 0]
-            n_requested = nb_class_samples * len(target_df)
-            n_available = len(df_real_pool)
-            df_real = df_real_pool.sample(
-                n=min(n_requested, n_available),
-                random_state=42
-            )
+            df_real = df_test[df_test['label'] == 0]
+            # n_requested = nb_class_samples * len(target_df)
+            # n_available = len(df_real)
+            # df_real = df_real.sample(n=min(n_requested, n_available),random_state=42)
+
             dfs.append(df_real)
+
             df_fake = (
                 df_test[df_test[ds['gen_column']].isin(target_df)]
-                .groupby(ds['gen_column'], group_keys=False)
-                .sample(n=nb_class_samples, random_state=42))
+                # .groupby(ds['gen_column'], group_keys=False).sample(n=nb_class_samples, random_state=42)
+                )
             dfs.append(df_fake)
 
             df_eval = pd.concat(dfs, ignore_index=True)
 
         else:
             df_train = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
-            df_dev = pd.read_csv(os.path.join(ds['base_path'], ds['dev_file']), sep=' ', header=None)
-
             df_train['label'] = df_train[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
             df_train['path'] = df_train[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
-            # df_train = df_train[df_train['label'] == 1]
 
+            df_dev = pd.read_csv(os.path.join(ds['base_path'], ds['dev_file']), sep=' ', header=None)
             df_dev['label'] = df_dev[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
             df_dev['path'] = df_dev[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['dev_dir'], f"{x}.flac"))
-            # df_dev = df_dev[df_dev['label'] == 1]
 
             df_test = pd.read_csv(os.path.join(ds['base_path'], ds['eval_file']), sep=' ', header=None)
             df_test['label'] = df_test[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
             df_test['path'] = df_test[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac"))
+
+            if config['test_data'] == 'asv5':
+                df_test = df_test[df_test[3] == '-']  # remove post-processed samples
+
             df_all = pd.concat([df_train, df_dev, df_test], ignore_index=True)
 
             target_df = config['selected']
             print(f"Target generator: {target_df}")
 
             dfs = []
+            # nb. we take real samples from the evaluation set only
+            df_real = df_test[df_test['label'] == 0]
+            # n_requested = nb_class_samples * len(target_df)
+            # n_available = len(df_real)
+            # df_real = df_real.sample(n=min(n_requested, n_available),random_state=42)
+            dfs.append(df_real)
 
-            df_real_pool = df_test[df_test['label'] == 0]
-            n_requested = nb_class_samples * len(target_df)
-            n_available = len(df_real_pool)
-            df_real_2 = df_real_pool.sample(
-                n=min(n_requested, n_available),
-                random_state=42
-            )
-            dfs.append(df_real_2)
-
-            df_fake_2 = (
+            df_fake = (
                 df_all[df_all[ds['gen_column']].isin(target_df)]
-                .groupby(ds['gen_column'], group_keys=False)
-                .sample(n=nb_class_samples, random_state=42))
-            dfs.append(df_fake_2)
+                # .groupby(ds['gen_column'], group_keys=False)
+                # .sample(n=nb_class_samples, random_state=42)
+            )
+            dfs.append(df_fake)
 
             df_eval = pd.concat(dfs, ignore_index=True)
 
         file_eval = list(df_eval['path'])
         labels_eval = list(df_eval['label'])
-        eval_set = LoadEvaluationData(list_IDs=file_eval, labels=labels_eval, models_list=models_list, config=config)
+        attack_eval = list(df_eval[ds['gen_column']])
+        eval_set = LoadEvaluationData(list_IDs=file_eval, labels=labels_eval, attacks=attack_eval, models_list=models_list, config=config)
 
     eval_loader = DataLoader(eval_set, batch_size=config['batch_size_eval'], shuffle=False)
     del eval_set
@@ -330,74 +323,116 @@ def load_evaluation_data(models_list, config):
 
 def load_calibration_data(mod, config):
         print("Loading calibration data.")
-        nb_class_samples = 500
+        nb_class_samples = 1000
 
-        ds = config[config['test_data']]
-        if config['test_data'] == 'asv19':
-            if not config['pool']:
-                if mod in ['flat_pitch', 'oversmooth']:
-                    target = ['-', 'A01']
-                elif mod in ['f0_incons', 'energy']:
-                    target = ['-', 'A04']
-                else:  # phase, ckrboard
-                    target = ['-', 'A03']
-            else:
-                # target = ['-', 'A01', 'A03', 'A04']
-                target = ['-', 'A04']
+        # Load real data from the validation set (~3000 samples max)
+        if config['train_data'] == 'mix':
+            config['large_scale'] = True
+            _, df_real = make_df_bonafide(config)
         else:
-            if not config['pool']:
-                # if mod in ['oversmooth', 'min_phase' 'energy']:
-                #     target = ['bonafide', 'A21']
-                # elif mod in ['flat_pitch', 'f0_incons']:
-                #     target = ['bonafide', 'A12']
-                # else:  # smooth, phase, ckrboard  TODO: not ok for checkerboard
-                #     target = ['bonafide', 'A17']
-                if mod in ['energy']:
-                    target = ['bonafide', 'A09']
-                elif mod in ['flat_pitch', 'f0_incons']:
-                    target = ['bonafide', 'A02']
+            df_all = make_df_bonafide(config)
+            _, df_real = train_test_split(df_all, test_size=0.2, random_state=42, shuffle=True)
+        df_real['label'] = 0
+
+        # Load an equal number of fake samples
+        if config['calibration_data'] == 'pseudo':
+            df_real = df_real.sample(n=nb_class_samples, random_state=42)
+
+            df_eval = pd.DataFrame(df_real.values.repeat(2, axis=0), columns=df_real.columns)
+            file_eval = list(df_eval['path'])
+            models_list = None
+
+            eval_set = LoadEvalData_MoE_SanityCheck(list_IDs=file_eval, models_list=models_list, config=config)
+            print('Using pseudo-fake data.')
+
+        else:
+            ds = config[config['calibration_data']]
+
+            if config['calibration_data'] in ['asv19', 'asv5']:
+                if config['calibration_data'] == 'asv19':
+                    if not config['pool_calibration_set']:
+                        if mod in ['flat_pitch', 'oversmooth', 'ckrboard']:
+                            # target = ['-', 'A01']
+                            target = ['A01']
+                        elif mod in ['f0_incons', 'energy']:
+                            target = ['A04']
+                        else: # phase
+                            target = ['A03']
+                    else:
+                        target = ['A01', 'A03', 'A04']
                 else:
-                    target = ['bonafide', 'A07']
+                    if not config['pool_calibration_set']:
+                        if mod in ['energy', 'ckrboard']:
+                            # target = ['bonafide', 'A09']
+                            target = ['A09']
+                        elif mod in ['flat_pitch', 'f0_incons']:
+                            target = ['A02']
+                        else:
+                            target = ['A07']
+                    else:
+                        target = ['A02', 'A07', 'A09']
+
+                print(target)
+                nb_targets = len(target)
+
+                df_t = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
+                df_t = df_t[df_t[ds['gen_column']].isin(target)]
+                df_t['label'] = df_t[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
+                df_t['path'] = df_t[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
+
+                df = pd.concat([df_t], ignore_index=True)
+                dfs = []
+
+                df_real = df_real.sample(n=nb_class_samples * nb_targets, random_state=42)
+                dfs.append(df_real)
+
+                df_fake = (
+                    df[df['label'] == 1]
+                    .groupby(ds['gen_column'], group_keys=False)
+                    .sample(n=nb_class_samples, random_state=42))
+                dfs.append(df_fake)
+
+                df_eval = pd.concat(dfs, ignore_index=True)
+
+            elif config['calibration_data'] == 'asv15':
+                if not config['pool_calibration_set']:
+                    if mod in ['flat_pitch', 'f0_incons', 'energy']:
+                        target = ['S10']
+                    else:
+                        target = ['S3']
+                else:
+                    target = ['S3', 'S10']
+
+                print(target)
+                nb_targets = len(target)
+
+                df_test = pd.read_csv(os.path.join(ds['base_path'], "CM_protocol/cm_evaluation.ndx"), sep=' ',header=None)
+                df_test = df_test[df_test[ds['gen_column']].isin(target)]
+                df_test['label'] = (df_test[ds['gen_column']] != 'human').astype(int)
+                df_test['path'] = (ds['file_dir'] + '/' + df_test[0].astype(str) + '/' + df_test[1].astype(str) + '.wav')
+
+                dfs = []
+
+                df_real = df_real.sample(n=nb_class_samples * nb_targets, random_state=42)
+                dfs.append(df_real)
+
+                df_fake = (
+                    df_test[df_test['label'] == 1]
+                    .groupby(ds['gen_column'], group_keys=False)
+                    .sample(n=nb_class_samples, random_state=42))
+                dfs.append(df_fake)
+
+                df_eval = pd.concat(dfs, ignore_index=True)
+
             else:
-                target = ['bonafide', 'A02', 'A07', 'A09']
-                # target = ['bonafide', 'A12', 'A17', 'A21']
+                print("Calibration data not supported.")
+                sys.exit()
 
-        nb_targets = len(target) - 1
-
-        df_t = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
-        df_t = df_t[df_t[ds['gen_column']].isin(target)]
-        df_t['label'] = df_t[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
-        df_t['path'] = df_t[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
-
-        df_d = pd.read_csv(os.path.join(ds['base_path'], ds['dev_file']), sep=' ', header=None)
-        df_d = df_d[df_d[ds['gen_column']].isin(target)]
-        df_d['label'] = df_d[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
-        df_d['path'] = df_d[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['dev_dir'], f"{x}.flac"))
-
-        df_e = pd.read_csv(os.path.join(ds['base_path'], ds['eval_file']), sep=' ', header=None)
-        df_e = df_e[df_e[ds['gen_column']].isin(target)]
-        df_e['label'] = df_e[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
-        df_e['path'] = df_e[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}.flac"))
-
-        df = pd.concat([df_t, df_d, df_e], ignore_index=True)
-
-        dfs = []
-        df_real = (
-            df[df['label'] == 0]
-            .sample(n=nb_class_samples * nb_targets, random_state=42))
-        dfs.append(df_real)
-        df_fake = (
-            df[df['label'] == 1]
-            .groupby(ds['gen_column'], group_keys=False)
-            .sample(n=nb_class_samples, random_state=42))
-        dfs.append(df_fake)
-
-        df_eval = pd.concat(dfs, ignore_index=True)
-
-        file_eval = list(df_eval['path'])
-        labels_eval = list(df_eval['label'])
-        models_list = None
-        eval_set = LoadEvaluationData(list_IDs=file_eval, labels=labels_eval, models_list=models_list, config=config)
+            file_eval = list(df_eval['path'])
+            labels_eval = list(df_eval['label'])
+            attack_eval = None
+            models_list = None
+            eval_set = LoadEvaluationData(list_IDs=file_eval, labels=labels_eval, attacks=attack_eval, models_list=models_list, config=config)
 
         eval_loader = DataLoader(eval_set, batch_size=config['batch_size_eval'], shuffle=False)
         del eval_set
