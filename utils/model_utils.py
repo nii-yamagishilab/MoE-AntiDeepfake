@@ -7,21 +7,22 @@ from models.lcnn_model import LCNN
                             # ----------------------------------------#
 
 MODEL_REGISTRY = [
-    # ("MLP", MLP_Flat_Pitch),
     ("MLP", MLP_F0_Incons),
     ("MLP", MLP_Smooth),
     ("LCNN", LCNN),
     ("MLP", MLP_Energy),
+    ("MLP", MLP_Checkerboard),
     ("MLP", MLP_Checkerboard)
 ]
 
 MANIPULATIONS_REGISTRY = [
-    # ("MLP", "flat_pitch"),
     ("MLP", "f0_incons"),
     ("MLP", "oversmooth"),
     ("LCNN", "min_phase"),
     ("MLP", "energy"),
-    ("MLP", "ckrboard")
+    # ("MLP", "ckrboard"),
+    ("MLP", "tonal"),
+    ("MLP", "filtering")
 ]
 
 def get_model_type_from_ckpt(ckpt_path):

@@ -141,10 +141,130 @@ def load_training_data(models_list, config):
 
     return train_loader, dev_loader
 
-def load_evaluation_data(models_list, config):
+def load_calibration_data(mod, config):
+    print("Loading calibration data.")
+    nb_class_samples = 1000
 
+    # Load real data from the validation set (~3000 samples max)
+    if config['train_data'] == 'mix':
+        config['large_scale'] = True
+        _, df_real = make_df_bonafide(config)
+    else:
+        df_all = make_df_bonafide(config)
+        _, df_real = train_test_split(df_all, test_size=0.2, random_state=42, shuffle=True)
+    df_real['label'] = 0
+
+    # Load an equal number of fake samples
+    if config['calibration_data'] == 'pseudo':
+        df_real = df_real.sample(n=nb_class_samples, random_state=42)
+
+        df_eval = pd.DataFrame(df_real.values.repeat(2, axis=0), columns=df_real.columns)
+        file_eval = list(df_eval['path'])
+        models_list = None
+
+        eval_set = LoadEvalData_MoE_SanityCheck(list_IDs=file_eval, models_list=models_list, config=config)
+        print('Using pseudo-fake data.')
+    else:
+        ds = config[config['calibration_data']]
+
+        if config['calibration_data'] in ['asv19', 'asv5']:
+            if config['calibration_data'] == 'asv19':
+                if not config['pool_calibration_set']:
+                    if mod in ['flat_pitch', 'oversmooth', 'tonal', 'filtering']:
+                        # target = ['-', 'A01']
+                        target = ['A01']
+                    elif mod in ['f0_incons', 'energy']:
+                        target = ['A04']
+                    else:  # phase
+                        target = ['A03']
+                else:
+                    target = ['A01', 'A03', 'A04']
+            else:
+                if not config['pool_calibration_set']:
+                    if mod in ['energy', 'tonal', 'filtering']:
+                        # target = ['bonafide', 'A09']
+                        target = ['A09']
+                    elif mod in ['flat_pitch', 'f0_incons']:
+                        target = ['A02']
+                    else:
+                        target = ['A07']
+                else:
+                    target = ['A02', 'A07', 'A09']
+
+            print(target)
+            nb_targets = len(target)
+
+            df_t = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
+            df_t = df_t[df_t[ds['gen_column']].isin(target)]
+            df_t['label'] = df_t[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
+            df_t['path'] = df_t[ds['path_column']].apply(
+                lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
+
+            df = pd.concat([df_t], ignore_index=True)
+            dfs = []
+
+            df_real = df_real.sample(n=nb_class_samples * nb_targets, random_state=42)
+            dfs.append(df_real)
+
+            df_fake = (
+                df[df['label'] == 1]
+                .groupby(ds['gen_column'], group_keys=False)
+                .sample(n=nb_class_samples, random_state=42))
+            dfs.append(df_fake)
+
+            df_eval = pd.concat(dfs, ignore_index=True)
+
+        elif config['calibration_data'] == 'asv15':
+            if not config['pool_calibration_set']:
+                if mod in ['flat_pitch', 'f0_incons', 'energy']:
+                    target = ['S10']
+                else:
+                    target = ['S3']
+            else:
+                target = ['S3', 'S10']
+
+            print(target)
+            nb_targets = len(target)
+
+            df_test = pd.read_csv(os.path.join(ds['base_path'], "CM_protocol/cm_evaluation.ndx"), sep=' ',
+                                  header=None)
+            df_test = df_test[df_test[ds['gen_column']].isin(target)]
+            df_test['label'] = (df_test[ds['gen_column']] != 'human').astype(int)
+            df_test['path'] = (
+                        ds['file_dir'] + '/' + df_test[0].astype(str) + '/' + df_test[1].astype(str) + '.wav')
+
+            dfs = []
+
+            df_real = df_real.sample(n=nb_class_samples * nb_targets, random_state=42)
+            dfs.append(df_real)
+
+            df_fake = (
+                df_test[df_test['label'] == 1]
+                .groupby(ds['gen_column'], group_keys=False)
+                .sample(n=nb_class_samples, random_state=42))
+            dfs.append(df_fake)
+
+            df_eval = pd.concat(dfs, ignore_index=True)
+
+        else:
+            print("Calibration data not supported.")
+            sys.exit()
+
+        file_eval = list(df_eval['path'])
+        labels_eval = list(df_eval['label'])
+        attack_eval = None
+        models_list = None
+        eval_set = LoadEvaluationData(list_IDs=file_eval, labels=labels_eval, attacks=attack_eval,
+                                      models_list=models_list, config=config)
+
+    eval_loader = DataLoader(eval_set, batch_size=config['batch_size_eval'], shuffle=False)
+    del eval_set
+    print(f'Total no. of samples: {len(eval_loader.dataset)} \n')
+
+    return eval_loader
+
+def load_evaluation_data(models_list, config):
     ds = config[config['test_data']]
-    # nb_class_samples = 1000
 
     if config['sanity_check']:
         print("Test on manipulated data for sanity checking.")
@@ -173,18 +293,14 @@ def load_evaluation_data(models_list, config):
                 "generator": [os.path.basename(os.path.dirname(p)) for p in fake_data]
             })
 
-            # nb_class_samples =300
             target_df = config['selected']
             print(f"Target generator: {target_df}")
 
             df_fake = (
                 df_fake[df_fake['generator'].isin(target_df)]
-                # .groupby('generator', group_keys=False).apply(lambda x: x.sample(n=nb_class_samples, random_state=42))
             )
-            # n_classes = df_fake['generator'].nunique()
 
             real_data = glob('/Database/M-AILABS/*/*/*/*/*/*/*.wav')
-            # real_data = random.sample(real_data, nb_class_samples * n_classes)
             real_labels = [0] * len(real_data)
             real_generators = ['-'] * len(real_data)
 
@@ -209,22 +325,19 @@ def load_evaluation_data(models_list, config):
 
             df_fake = (
                 df_fake[df_fake[ds['gen_column']].isin(target_df)]
-                # .groupby(ds['gen_column'], group_keys=False).apply(lambda x: x.sample(n=nb_class_samples, random_state=42))
             )
-            # n_classes = df_fake[ds['gen_column']].nunique()
-            # df_real = df_real.sample(n=nb_class_samples * n_classes, random_state=42)
             df_eval = pd.concat([df_fake, df_real])
 
         elif config['test_data'] == 'sc':
-            df_train = pd.read_csv(os.path.join(ds['base_path'], ds['meta_train']), sep=',', header=None)
+            df_train = pd.read_csv(os.path.join(ds['base_path'], ds['meta_train']), sep=',')
             df_train['label'] = df_train[ds['gen_column']].apply(lambda x: 0 if x == 'a00' else 1)
             df_train['path'] = df_train[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}"))
 
-            df_dev = pd.read_csv(os.path.join(ds['base_path'], ds['meta_dev']), sep=',', header=None)
+            df_dev = pd.read_csv(os.path.join(ds['base_path'], ds['meta_dev']), sep=',')
             df_dev['label'] = df_dev[ds['gen_column']].apply(lambda x: 0 if x == 'a00' else 1)
             df_dev['path'] = df_dev[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['dev_dir'], f"{x}"))
 
-            df_test = pd.read_csv(os.path.join(ds['base_path'], ds['meta_eval']), sep=',', header=None)
+            df_test = pd.read_csv(os.path.join(ds['base_path'], ds['meta_eval']), sep=',')
             df_test['label'] = df_test[ds['gen_column']].apply(lambda x: 0 if x == 'a00' else 1)
             df_test['path'] = df_test[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}"))
             df_all = pd.concat([df_train, df_dev, df_test], ignore_index=True)
@@ -234,16 +347,13 @@ def load_evaluation_data(models_list, config):
 
             dfs = []
             df_real = df_test[df_test['label'] == 0]
-            # n_requested = nb_class_samples * len(target_df)
-            # n_available = len(df_real_pool)
-            # df_real = df_real.sample(n=min(n_requested, n_available),random_state=42)
-            dfs.append(df_real)
+            dfs.append(df_real)  # ~9k samples
 
             df_fake = (
                 df_all[df_all[ds['gen_column']].isin(target_df)]
-                # .groupby(ds['gen_column'], group_keys=False).sample(n=nb_class_samples, random_state=42)
+                .groupby(ds['gen_column'], group_keys=False).sample(n=7963, random_state=42)
             )
-            dfs.append(df_fake)
+            dfs.append(df_fake) # ~183k samples (if I don't cut: ~2.5 mln!)
 
             df_eval = pd.concat(dfs, ignore_index=True)
 
@@ -296,16 +406,9 @@ def load_evaluation_data(models_list, config):
             dfs = []
             # nb. we take real samples from the evaluation set only
             df_real = df_test[df_test['label'] == 0]
-            # n_requested = nb_class_samples * len(target_df)
-            # n_available = len(df_real)
-            # df_real = df_real.sample(n=min(n_requested, n_available),random_state=42)
             dfs.append(df_real)
 
-            df_fake = (
-                df_all[df_all[ds['gen_column']].isin(target_df)]
-                # .groupby(ds['gen_column'], group_keys=False)
-                # .sample(n=nb_class_samples, random_state=42)
-            )
+            df_fake = df_all[df_all[ds['gen_column']].isin(target_df)]
             dfs.append(df_fake)
 
             df_eval = pd.concat(dfs, ignore_index=True)
@@ -321,126 +424,8 @@ def load_evaluation_data(models_list, config):
 
     return eval_loader
 
-def load_calibration_data(mod, config):
-        print("Loading calibration data.")
-        nb_class_samples = 1000
 
-        # Load real data from the validation set (~3000 samples max)
-        if config['train_data'] == 'mix':
-            config['large_scale'] = True
-            _, df_real = make_df_bonafide(config)
-        else:
-            df_all = make_df_bonafide(config)
-            _, df_real = train_test_split(df_all, test_size=0.2, random_state=42, shuffle=True)
-        df_real['label'] = 0
-
-        # Load an equal number of fake samples
-        if config['calibration_data'] == 'pseudo':
-            df_real = df_real.sample(n=nb_class_samples, random_state=42)
-
-            df_eval = pd.DataFrame(df_real.values.repeat(2, axis=0), columns=df_real.columns)
-            file_eval = list(df_eval['path'])
-            models_list = None
-
-            eval_set = LoadEvalData_MoE_SanityCheck(list_IDs=file_eval, models_list=models_list, config=config)
-            print('Using pseudo-fake data.')
-
-        else:
-            ds = config[config['calibration_data']]
-
-            if config['calibration_data'] in ['asv19', 'asv5']:
-                if config['calibration_data'] == 'asv19':
-                    if not config['pool_calibration_set']:
-                        if mod in ['flat_pitch', 'oversmooth', 'ckrboard']:
-                            # target = ['-', 'A01']
-                            target = ['A01']
-                        elif mod in ['f0_incons', 'energy']:
-                            target = ['A04']
-                        else: # phase
-                            target = ['A03']
-                    else:
-                        target = ['A01', 'A03', 'A04']
-                else:
-                    if not config['pool_calibration_set']:
-                        if mod in ['energy', 'ckrboard']:
-                            # target = ['bonafide', 'A09']
-                            target = ['A09']
-                        elif mod in ['flat_pitch', 'f0_incons']:
-                            target = ['A02']
-                        else:
-                            target = ['A07']
-                    else:
-                        target = ['A02', 'A07', 'A09']
-
-                print(target)
-                nb_targets = len(target)
-
-                df_t = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
-                df_t = df_t[df_t[ds['gen_column']].isin(target)]
-                df_t['label'] = df_t[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
-                df_t['path'] = df_t[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
-
-                df = pd.concat([df_t], ignore_index=True)
-                dfs = []
-
-                df_real = df_real.sample(n=nb_class_samples * nb_targets, random_state=42)
-                dfs.append(df_real)
-
-                df_fake = (
-                    df[df['label'] == 1]
-                    .groupby(ds['gen_column'], group_keys=False)
-                    .sample(n=nb_class_samples, random_state=42))
-                dfs.append(df_fake)
-
-                df_eval = pd.concat(dfs, ignore_index=True)
-
-            elif config['calibration_data'] == 'asv15':
-                if not config['pool_calibration_set']:
-                    if mod in ['flat_pitch', 'f0_incons', 'energy']:
-                        target = ['S10']
-                    else:
-                        target = ['S3']
-                else:
-                    target = ['S3', 'S10']
-
-                print(target)
-                nb_targets = len(target)
-
-                df_test = pd.read_csv(os.path.join(ds['base_path'], "CM_protocol/cm_evaluation.ndx"), sep=' ',header=None)
-                df_test = df_test[df_test[ds['gen_column']].isin(target)]
-                df_test['label'] = (df_test[ds['gen_column']] != 'human').astype(int)
-                df_test['path'] = (ds['file_dir'] + '/' + df_test[0].astype(str) + '/' + df_test[1].astype(str) + '.wav')
-
-                dfs = []
-
-                df_real = df_real.sample(n=nb_class_samples * nb_targets, random_state=42)
-                dfs.append(df_real)
-
-                df_fake = (
-                    df_test[df_test['label'] == 1]
-                    .groupby(ds['gen_column'], group_keys=False)
-                    .sample(n=nb_class_samples, random_state=42))
-                dfs.append(df_fake)
-
-                df_eval = pd.concat(dfs, ignore_index=True)
-
-            else:
-                print("Calibration data not supported.")
-                sys.exit()
-
-            file_eval = list(df_eval['path'])
-            labels_eval = list(df_eval['label'])
-            attack_eval = None
-            models_list = None
-            eval_set = LoadEvaluationData(list_IDs=file_eval, labels=labels_eval, attacks=attack_eval, models_list=models_list, config=config)
-
-        eval_loader = DataLoader(eval_set, batch_size=config['batch_size_eval'], shuffle=False)
-        del eval_set
-        print(f'Total no. of samples: {len(eval_loader.dataset)} \n')
-
-        return eval_loader
-
-#--------------------------- Baseline Dataframes ---------------------------#
+#--------------------------- Not use - baseline dfs ---------------------------#
 
 def load_asvspoof_data(file_name, base_path, label_dir):
     df = pd.read_csv(os.path.join(label_dir, file_name), sep=' ', header=None)

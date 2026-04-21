@@ -4,114 +4,6 @@ import numpy as np
 import os
 
 
-def expert_loop_calibration(data_loader, expert, device, is_test=False):
-    expert.eval()
-
-    logits_list = []
-    label_list = []
-    batch_k_list = []
-    batch_a_list = []
-    total_removed = 0
-    total_seen = 0
-
-    all_emb_r = []
-    all_emb_f = []
-    all_emb = []
-
-    with torch.no_grad():
-        for batch_x, batch_y, batch_k, batch_a in tqdm(data_loader, total=len(data_loader)):
-            if isinstance(batch_x, dict):
-                values = list(batch_x.values())
-                if len(values) == 1:
-                    batch_x = values[0]
-                else:
-                    batch_x = values
-
-            batch_x = torch.stack([x.to(device) for x in batch_x])
-            batch_logits, embeddings = expert(batch_x)
-
-            batch_logits = batch_logits.cpu().numpy().ravel()
-            embeddings = embeddings.cpu().numpy()
-            batch_y = np.array(batch_y)
-
-            valid_mask = batch_y != -1
-            total_removed += np.sum(~valid_mask)
-            total_seen += len(batch_y)
-            if not np.any(valid_mask):
-                continue
-
-            batch_logits = batch_logits[valid_mask]
-            batch_y = batch_y[valid_mask]
-
-            logits_list.extend(batch_logits.tolist())
-            label_list.extend(batch_y.tolist())
-            batch_k_list.extend(np.array(batch_k)[valid_mask].tolist())
-            batch_a_list.extend(np.array(batch_a)[valid_mask].tolist())
-
-            embeddings = embeddings[valid_mask]
-            emb_real = embeddings[batch_y == 0]
-            emb_fake = embeddings[batch_y == 1]
-
-            all_emb.append(embeddings)
-            all_emb_r.append(emb_real)
-            all_emb_f.append(emb_fake)
-
-    all_emb_r = np.vstack(all_emb_r)
-    all_emb_f = np.vstack(all_emb_f)
-    all_emb = np.vstack(all_emb)
-
-    print(f"Removed {total_removed} corrupted samples out of {total_seen} total "
-          f"({100 * total_removed / total_seen:.2f}%).")
-
-    if is_test:
-        return logits_list, label_list, all_emb, batch_k_list, batch_a_list
-    else:
-        return logits_list, label_list, all_emb_r, all_emb_f
-
-
-def expert_loop(data_loader, expert, device, return_id=False):
-    expert.eval()
-
-    logits_list = []
-    label_list = []
-    batch_k_list = []
-    total_removed = 0
-    total_seen = 0
-
-    with torch.no_grad():
-        for batch_x, batch_y, batch_k in tqdm(data_loader, total=len(data_loader)):
-            if isinstance(batch_x, dict):
-                values = list(batch_x.values())
-                if len(values) == 1:
-                    batch_x = values[0]
-                else:
-                    batch_x = values
-
-            batch_x = torch.stack([x.to(device) for x in batch_x])
-            batch_logits = expert(batch_x)
-
-            batch_logits = batch_logits.cpu().numpy().ravel()
-            batch_y = np.array(batch_y)
-
-            valid_mask = batch_y != -1
-            total_removed += np.sum(~valid_mask)
-            total_seen += len(batch_y)
-            if not np.any(valid_mask):
-                continue
-
-            logits_list.extend(batch_logits[valid_mask].tolist())
-            label_list.extend(batch_y[valid_mask].tolist())
-            batch_k_list.extend(np.array(batch_k)[valid_mask].tolist())
-
-    print(f"Removed {total_removed} corrupted samples out of {total_seen} total "
-          f"({100 * total_removed / total_seen:.2f}%).")
-
-    if return_id:
-        return logits_list, label_list, batch_k_list
-    else:
-        return logits_list, label_list
-
-
 def smooth_labels(y, eps=0.1):
     return y * (1 - eps) + 0.5 * eps
 
@@ -192,7 +84,7 @@ def eval_expert(model, data_loader, device):
     total_removed = 0
     total_seen = 0
 
-    for batch_x, batch_y, utt_id in tqdm(data_loader, total=len(data_loader)):
+    for batch_x, batch_y, utt_id, _ in tqdm(data_loader, total=len(data_loader)):
         if isinstance(batch_x, dict):
             values = list(batch_x.values())
             if len(values) == 1:
@@ -203,16 +95,6 @@ def eval_expert(model, data_loader, device):
         batch_x = torch.stack([x.to(device) for x in batch_x])
 
         batch_out = model(batch_x)
-        # print(batch_out.shape)
-        # print(batch_out)
-        # # print()
-        # # print(calib_probs.shape)
-        # # print(calib_probs[:, 0])
-        # # print()
-        # print(utt_id)
-        # print()
-        # import sys
-        # sys.exit()
 
         batch_score = batch_out.cpu().numpy().ravel()
         batch_y = np.array(batch_y)
@@ -233,6 +115,71 @@ def eval_expert(model, data_loader, device):
 
     return fname_list, score_list, label_list
 
+def expert_loop_calibration(data_loader, expert, device, is_test=False):
+    expert.eval()
+
+    logits_list = []
+    label_list = []
+    batch_k_list = []
+    batch_a_list = []
+    total_removed = 0
+    total_seen = 0
+
+    all_emb_r = []
+    all_emb_f = []
+    all_emb = []
+
+    with torch.no_grad():
+        for batch_x, batch_y, batch_k, batch_a in tqdm(data_loader, total=len(data_loader)):
+            if isinstance(batch_x, dict):
+                values = list(batch_x.values())
+                if len(values) == 1:
+                    batch_x = values[0]
+                else:
+                    batch_x = values
+
+            batch_x = torch.stack([x.to(device) for x in batch_x])
+            batch_logits, embeddings = expert(batch_x)
+
+            batch_logits = batch_logits.cpu().numpy().ravel()
+            embeddings = embeddings.cpu().numpy()
+            batch_y = np.array(batch_y)
+
+            valid_mask = batch_y != -1
+            total_removed += np.sum(~valid_mask)
+            total_seen += len(batch_y)
+            if not np.any(valid_mask):
+                continue
+
+            batch_logits = batch_logits[valid_mask]
+            batch_y = batch_y[valid_mask]
+
+            logits_list.extend(batch_logits.tolist())
+            label_list.extend(batch_y.tolist())
+            batch_k_list.extend(np.array(batch_k)[valid_mask].tolist())
+            batch_a_list.extend(np.array(batch_a)[valid_mask].tolist())
+
+            embeddings = embeddings[valid_mask]
+            emb_real = embeddings[batch_y == 0]
+            emb_fake = embeddings[batch_y == 1]
+
+            all_emb.append(embeddings)
+            all_emb_r.append(emb_real)
+            all_emb_f.append(emb_fake)
+
+    all_emb_r = np.vstack(all_emb_r)
+    all_emb_f = np.vstack(all_emb_f)
+    all_emb = np.vstack(all_emb)
+
+    print(f"Removed {total_removed} corrupted samples out of {total_seen} total "
+          f"({100 * total_removed / total_seen:.2f}%).")
+
+    if is_test:
+        return logits_list, label_list, all_emb, batch_k_list, batch_a_list
+    else:
+        return logits_list, label_list, all_emb_r, all_emb_f
+
+#------------------------------------ NOT IN USE - MOE ----------------------------------#
 
 def train_epoch_compound(train_loader, model, optim, losses, config, device):
     num_tot = 0.0
@@ -551,7 +498,7 @@ def eval_moe_compound(model, data_loader, save_dir, device):
     return scores, labels
 
 
-#-------------------------------- BASELINE ---------------------------------#
+#-------------------------------- NOT IN USE - BASELINE ---------------------------------#
 
 def train_epoch_moe(train_loader, model, optim, criterion, device):
     running_loss = 0

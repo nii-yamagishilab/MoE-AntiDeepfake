@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=eval_moe
-#SBATCH --out="txt/E_MoE_Way3_ASV19_asv5.out.txt"
-#SBATCH --time=3-00:00:00
+#SBATCH --job-name=eval_expert
+#SBATCH --out="txt/E_MIX_FILTERING_asv19.out.txt"
+#SBATCH --time=03:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1
 
@@ -22,7 +22,7 @@ conda activate moe_env || { echo "Failed to activate Conda environment"; exit 1;
 printf "\n"
 echo "Starting Python script..."
 printf "\n"
-python main/3__eval_gate.py || { echo "Python script failed"; exit 1; }
+python main/1a__quick_expert_eval.py || { echo "Python script failed"; exit 1; }
 
 # Log job end info
 echo "Job finished at: $(date)"

@@ -205,19 +205,12 @@ def spec_extraction(y, stft_params):
 
     return feat
 
-def energy_extraction(y, stft_params):
-    frames = y.unfold(0, stft_params.fft_size, stft_params.hop_size)
-    energy = (frames ** 2).mean(dim=1)
-    # delta = torch.diff(energy, prepend=energy[:1])
-    # feat = torch.stack([energy, delta], dim=0)
-
-    return energy
-
 
 #_______________________________________Upsampling Artifacts___________________________________#
 
 def extract_upsampling_feature(
     x,
+    mod,
     sr=16000,
     n_fft=512,
     hop_length=256,
@@ -238,24 +231,23 @@ def extract_upsampling_feature(
         padded=False,
     )
 
-    # FOR TONAL ARTIFACTS
-    S = np.abs(Z)
-    S_mean = np.mean(S, axis=1)  # average spectrum
-    mask = (f >= fmin) & (f <= fmax)
-    S_mean = S_mean[mask] # band-limit
-    baseline = ndi.minimum_filter1d(S_mean, size=baseline_win) # baseline removal
-    fingerprint = S_mean - baseline
-    fingerprint = np.maximum(fingerprint, 0.0) # keep only peaks
-    fingerprint /= (np.linalg.norm(fingerprint) + 1e-8) # normalization (L2)
-
-    # # FOR FILTERING ARTIFACTS
-    # S = np.log(np.abs(Z) + 1e-8) # log magnitude
-    # S_mean = np.mean(S, axis=1) # average spectrum
-    # mask = (f >= fmin) & (f <= fmax)
-    # S_mean = S_mean[mask] # band-limit
-    # baseline = ndi.gaussian_filter1d(S_mean, sigma=baseline_win / 4) # smooth baseline (~clean envelope)
-    # fingerprint = S_mean - baseline # deviation from baseline (signed)
-    # fingerprint /= (np.linalg.norm(fingerprint) + 1e-8)
+    if mod == 'tonal':
+        S = np.abs(Z)
+        S_mean = np.mean(S, axis=1)  # average spectrum
+        mask = (f >= fmin) & (f <= fmax)
+        S_mean = S_mean[mask] # band-limit
+        baseline = ndi.minimum_filter1d(S_mean, size=baseline_win) # baseline removal
+        fingerprint = S_mean - baseline
+        fingerprint = np.maximum(fingerprint, 0.0) # keep only peaks
+        fingerprint /= (np.linalg.norm(fingerprint) + 1e-8) # normalization (L2)
+    else: # 'filtering'
+        S = np.log(np.abs(Z) + 1e-8) # log magnitude
+        S_mean = np.mean(S, axis=1) # average spectrum
+        mask = (f >= fmin) & (f <= fmax)
+        S_mean = S_mean[mask] # band-limit
+        baseline = ndi.gaussian_filter1d(S_mean, sigma=baseline_win / 4) # smooth baseline (~clean envelope)
+        fingerprint = S_mean - baseline # deviation from baseline (signed)
+        fingerprint /= (np.linalg.norm(fingerprint) + 1e-8)
 
     return fingerprint.astype(np.float32)
 
@@ -608,15 +600,17 @@ def apply_random_filter_coloration(x, sr):
 
     return y
 
-def simulate_upsampling_artifact(x, sr=16000):
+def simulate_upsampling_artifact(x, mod, sr=16000):
     # Step 1: kill most of the original spectrum
     y = x * 0.05
 
     # Step 2: inject sparse dominant peaks / generate filtered version
 
-    n_peaks = np.random.randint(1, 3)
-    mod = add_sparse_resonances(x, sr, n_peaks=n_peaks)
-    # mod = apply_random_filter_coloration(x, sr)
+    if mod == 'tonal':
+        n_peaks = np.random.randint(1, 3)
+        mod = add_sparse_resonances(x, sr, n_peaks=n_peaks)
+    else: # 'filtering'
+        mod = apply_random_filter_coloration(x, sr)
 
     # Step 3: combine
     y = y + mod

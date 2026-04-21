@@ -31,12 +31,12 @@ def run_eval(model_names, experts, checkpoint_paths, config):
         labels = np.array(labels)
         print(f"Valid samples: {len(labels)}")
 
-        rocauc, eer = compute_metrics_v2(labels, scores)
+        rocauc, eer, _ = compute_metrics_v2(labels, scores)
         print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n")
 
-        np.save(f"{config['save_path']}/file_IDs.npy", file_IDs)
-        np.save(f"{config['save_path']}/scores.npy", scores)
-        np.save(f"{config['save_path']}/labels.npy", labels)
+        # np.save(f"{config['save_path']}/file_IDs.npy", file_IDs)
+        # np.save(f"{config['save_path']}/scores.npy", scores)
+        # np.save(f"{config['save_path']}/labels.npy", labels)
 
 
 def main(checkpoint_paths, model_classes):
@@ -88,21 +88,19 @@ if __name__ == '__main__':
 
     # --------------------- PLEASE DEFINE ----------------------#
 
-    config['mod'] = 'ckrboard'
+    config['mod'] = 'filtering'
     config['sanity_check'] = False
     config['target_check'] = True
 
     config['train_data'] = 'mix'
-    config['test_data'] = 'asv5'
+    config['test_data'] = 'asv19'
     config['eval_all'] = False
 
     config['model'] = 'MLP'
     model_classes = [MLP_Checkerboard]
 
     model_names = [
-        # f'{config['train_data'].upper()}_{config['mod'].upper()}_{config['model'].upper()}.pth',
-        # f'{config['train_data'].upper()}_F0_JOINT_{config['model'].upper()}.pth',
-        f'{config['train_data'].upper()}_FILTERING_{config['model'].upper()}.pth',
+        f'{config['train_data'].upper()}_{config['mod'].upper()}_{config['model'].upper()}.pth',
     ]
 
     # ------------------------- Thanks -------------------------#

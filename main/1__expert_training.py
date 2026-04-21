@@ -52,7 +52,9 @@ def select_model(model_name):
         model = MLP_Energy(return_emb=True)
     elif model_name == 'mlp' and config['mod'] == 'oversmooth':
         model = MLP_Smooth(return_emb=True)
-    elif model_name == 'mlp' and config['mod'] == 'ckrboard':
+    elif model_name == 'mlp' and config['mod'] == 'tonal':
+        model = MLP_Checkerboard(return_emb=True)
+    elif model_name == 'mlp' and config['mod'] == 'filtering':
         model = MLP_Checkerboard(return_emb=True)
     elif model_name == 'cnn':
         model = CNN_1D_Model(return_emb=True)
@@ -130,10 +132,9 @@ if __name__ == '__main__':
     config['train_data'] = 'mix'
 
     config['model'] = 'mlp'
-    config['mod'] = 'ckrboard'
+    config['mod'] = 'filtering'
 
-    # config["model_name"] = f'{config['train_data'].upper()}_{config['mod'].upper()}_{config["model"].upper()}_v2.pth'
-    config["model_name"] = f'{config['train_data'].upper()}_FILTERING_{config["model"].upper()}.pth'
+    config["model_name"] = f'{config['train_data'].upper()}_{config['mod'].upper()}_{config["model"].upper()}_v2.pth'
 
     # ----------------------------- Thanks --------------------------- #
 

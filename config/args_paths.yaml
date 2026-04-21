@@ -34,8 +34,8 @@ sc:
   meta_train: "metadata/train.csv"
   meta_dev: "metadata/development.csv"
   meta_eval: "metadata/evaluation.csv"
-  gen_column: 2
-  path_column: 0
+  gen_column: 'attack'
+  path_column: 'file'
   train_dir: "flac/train"
   dev_dir: "flac/development"
   eval_dir: "flac/evaluation"

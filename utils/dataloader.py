@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 from utils.make_artifacts import *
 from scipy.ndimage import gaussian_filter
 from utils.model_utils import MANIPULATIONS_REGISTRY
+import hashlib
 
 import warnings
 warnings.simplefilter(action='ignore', category=UserWarning)
@@ -201,13 +202,12 @@ def extract_feature(x, mod, stft_params):
 
     elif mod == 'energy':
         feat = spec_extraction(x, stft_params)
-        # feat = energy_extraction(x, stft_params)
 
     elif mod == 'min_phase':
         feat = phase_extraction(x.numpy(), key='unwrapped', stft_params=stft_params)
 
-    elif mod == 'ckrboard':
-        feat = extract_upsampling_feature(x.numpy(), n_fft=stft_params.fft_size, hop_length=stft_params.hop_size)
+    elif mod in ['tonal', 'filtering']:
+        feat = extract_upsampling_feature(x.numpy(), mod=mod, n_fft=stft_params.fft_size, hop_length=stft_params.hop_size)
 
     else:
         feat = None
@@ -232,9 +232,9 @@ def apply_manipulation(feat, mod, stft_params):
     elif mod == 'min_phase':
         feat_mod = phase_manipulation(feat.numpy(), key='unwrapped', stft_params=stft_params)  # here feat is the raw wav
 
-    elif mod == 'ckrboard':
-        feat_mod = simulate_upsampling_artifact(feat.numpy())
-        feat_mod = extract_upsampling_feature(feat_mod, n_fft=stft_params.fft_size, hop_length=stft_params.hop_size)
+    elif mod in ['tonal', 'filtering']:
+        feat_mod = simulate_upsampling_artifact(feat.numpy(), mod=mod)
+        feat_mod = extract_upsampling_feature(feat_mod, mod=mod, n_fft=stft_params.fft_size, hop_length=stft_params.hop_size)
 
     else:
         feat_mod = None
@@ -256,8 +256,8 @@ class LoadTrainData(Dataset):
         self.config = config
         self.models_list = models_list
 
-        # self.gt_f0 = os.path.join(config['rootpath'], "temp_feat", f"f0_{config['train_data']}")
-        self.gt_f0 = os.path.join(config['rootpath'], "temp_feat")
+        # self.gt_f0 = os.path.join(config['rootpath'], "temp_feat")
+        self.gt_f0 = os.path.join(config['rootpath'], "f0_trajectories")
 
     def __len__(self):
         return len(self.list_IDs)
@@ -307,9 +307,23 @@ class LoadTrainData(Dataset):
         for mod in mod_list:
 
             if mod in ['flat_pitch', 'f0_incons']:
-                filename = os.path.splitext(os.path.basename(path))[0]
-                folder = 'f0_asv19' if 'ASVspoof2019' in path else 'f0_asv5' if 'ASVspoof5' in path else 'f0_vox'
+                folder = (
+                    'f0_asv19' if 'ASVspoof2019' in path
+                    else 'f0_asv5' if 'ASVspoof5' in path
+                    else 'f0_sc' if 'SpoofCeleb' in path
+                    else 'f0_mlaad' if 'MLAAD' in path
+                    else 'f0_mailabs' if 'M-AILABS' in path
+                    else 'f0_asv15' if 'ASVspoof2015' in path
+                    else 'f0_wf' if 'WaveFake' in path
+                    else None
+                )
+                if folder is None:
+                    raise ValueError(f"[WARNING] Unrecognized dataset in path: {path}")
+                filename = hashlib.md5(path.encode()).hexdigest()
                 file = os.path.join(self.gt_f0, folder, f'{filename}.npy')
+                # filename = os.path.splitext(os.path.basename(path))[0]
+                # folder = 'f0_asv19' if 'ASVspoof2019' in path else 'f0_asv5' if 'ASVspoof5' in path else 'f0_vox'
+                # file = os.path.join(self.gt_f0, folder, f'{filename}.npy')
 
                 if not os.path.exists(file):
                     feat = extract_feature(x, mod, self.stft_params)
@@ -342,7 +356,7 @@ class LoadTrainData(Dataset):
 
                 if idx % 2 == 0:
 
-                    if mod in ['min_phase', 'energy', 'ckrboard']:
+                    if mod in ['min_phase', 'energy', 'tonal', 'filtering']:
                         feat_mod = apply_manipulation(x, mod=mod, stft_params=self.stft_params)
                     else:
                         feat_mod = apply_manipulation(feat, mod=mod, stft_params=self.stft_params)
@@ -406,7 +420,7 @@ class LoadTrainData(Dataset):
                 for mod in selected_mods:
                     feat = feat_dict[mod]
 
-                    if mod in ['min_phase', 'energy', 'ckrboard']:
+                    if mod in ['min_phase', 'energy', 'tonal', 'filtering']:
                         feat_mod = apply_manipulation(x, mod=mod, stft_params=self.stft_params)
                     else:
                         feat_mod = apply_manipulation(feat, mod=mod, stft_params=self.stft_params)
@@ -475,7 +489,7 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         self.config = config
 
         self.mod = config['selected']
-        self.gt_f0 = os.path.join(config['rootpath'], "temp_feat")
+        self.gt_f0 = os.path.join(config['rootpath'], "f0_trajectories")
 
     def __len__(self):
         return len(self.list_IDs)
@@ -523,8 +537,19 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         invalid_mods = set()
         for mod in mod_list:
             if mod in ['flat_pitch', 'f0_incons']:
-                filename = os.path.splitext(os.path.basename(path))[0]
-                folder = 'f0_asv19' if 'ASVspoof2019' in path else 'f0_asv5' if 'ASVspoof5' in path else 'f0_vox'
+                folder = (
+                    'f0_asv19' if 'ASVspoof2019' in path
+                    else 'f0_asv5' if 'ASVspoof5' in path
+                    else 'f0_sc' if 'SpoofCeleb' in path
+                    else 'f0_mlaad' if 'MLAAD' in path
+                    else 'f0_mailabs' if 'M-AILABS' in path
+                    else 'f0_asv15' if 'ASVspoof2015' in path
+                    else 'f0_wf' if 'WaveFake' in path
+                    else None
+                )
+                if folder is None:
+                    raise ValueError(f"[WARNING] Unrecognized dataset in path: {path}")
+                filename = hashlib.md5(path.encode()).hexdigest()
                 file = os.path.join(self.gt_f0, folder, f'{filename}.npy')
 
                 if not os.path.exists(file):
@@ -554,7 +579,7 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
             for mod in self.mod:
                 feat = feat_dict[mod]
 
-                if mod in ['min_phase', 'energy', 'ckrboard']:
+                if mod in ['min_phase', 'energy', 'tonal', 'filtering']:
                     feat_mod = apply_manipulation(x, mod=mod, stft_params=self.stft_params)
                 else:
                     feat_mod = apply_manipulation(feat, mod=mod, stft_params=self.stft_params)
@@ -625,12 +650,13 @@ class LoadEvaluationData(Dataset):
         self.models_list = models_list
         self.config = config
 
-        self.gt_f0 = os.path.join(config['rootpath'], "temp_feat")
+        self.gt_f0 = os.path.join(config['rootpath'], "f0_trajectories")
 
     def __len__(self):
         return len(self.list_IDs)
 
     def __getitem__(self, idx):
+
         path = self.list_IDs[idx]
 
         if self.config['train_data'] == 'asv19':
@@ -676,8 +702,19 @@ class LoadEvaluationData(Dataset):
         for mod in mod_list:
 
             if mod in ['flat_pitch', 'f0_incons']:
-                filename = os.path.splitext(os.path.basename(path))[0]
-                folder = 'f0_asv19' if 'ASVspoof2019' in path else 'f0_asv5' if 'ASVspoof5' in path else 'f0_vox'
+                folder = (
+                    'f0_asv19' if 'ASVspoof2019' in path
+                    else 'f0_asv5' if 'ASVspoof5' in path
+                    else 'f0_sc' if 'SpoofCeleb' in path
+                    else 'f0_mlaad' if 'MLAAD' in path
+                    else 'f0_mailabs' if 'M-AILABS' in path
+                    else 'f0_asv15' if 'ASVspoof2015' in path
+                    else 'f0_wf' if 'WaveFake' in path
+                    else None
+                )
+                if folder is None:
+                    raise ValueError(f"[WARNING] Unrecognized dataset in path: {path}")
+                filename = hashlib.md5(path.encode()).hexdigest()
                 file = os.path.join(self.gt_f0, folder, f'{filename}.npy')
 
                 if not os.path.exists(file):
@@ -751,7 +788,8 @@ class LoadEvaluationData(Dataset):
 
         return feat_dict, label, track_name, attack
 
-#------------------------------ PoC STUFF ----------------------------#
+
+#------------------------------ Not used - PoC stuff ----------------------------#
 
 class Load_POC_Data(Dataset):
     def __init__(self, list_IDs, config, multi_band=False, is_eval=False):
@@ -997,7 +1035,7 @@ class LoadTrainData_Pitch(Dataset):
 
         return mag, label
 
-#---------------------------- BASELINE STUFF -------------------------#
+#---------------------------- Not used - baseline stuff -------------------------#
 
 class LoadTrainData_Baseline(Dataset):
     def __init__(self, list_IDs, labels, config):

@@ -3,12 +3,14 @@
 pydevd-pycharm.egg
 
 # Ignore folders
+baseline/
+
 checkpoints/
 results/
-baseline/csv_files/
-examples/
-temp_feat/
 txt/
+
+temp_feat/
+f0_trajectories/
 
 notebooks/0_pitch_mod_analyze.ipynb
 notebooks/0a_analyze_results.ipynb
@@ -19,6 +21,8 @@ notebooks/2_analyze_weights_v2.ipynb
 notebooks/3_inspect_targets.ipynb
 
 # Ignore specific files
+main/archived.tar.gz
+models/archived.tar.gz
 baseline/config/args_paths.yaml
 /*.txt
 /README.md
