@@ -56,7 +56,7 @@ def test_ensemble(ckpts_experts, config):
         names = ['all_a', 'all_b', 'all_H1', 'all_H0']
         files = {name: f"{config['save_path']}/{name}{'.pkl' if 'H' in name else '.npy'}" for name in names}
 
-        values = dict(zip(names, run_calibration_KDE(experts, config)))
+        values = dict(zip(names, run_calibration_KDE(experts, models_list, config)))
 
         for k in ['all_a', 'all_b', 'all_H1', 'all_H0']:
             np.save(files[k], values[k])
@@ -83,20 +83,21 @@ if __name__ == '__main__':
     config['calibration_type'] = 'CMLG'  # either CMLG or KDE
 
     config['train_data'] = 'mix'
-    config['calibration_data'] = 'asv19'
-    config['test_data'] = 'asv19'
+    config['calibration_data'] = 'sc'
+    config['test_data'] = 'sc'
 
     config['pool_calibration_set'] = True
+    config['calib_class_samples'] = 30
 
     config["all_manipulations"] = ['f0_incons', 'oversmooth','min_phase',
-                                   'energy', 'tonal', 'filtering']  # mind the order!!!
+                                   'energy', 'tonal']  # mind the order!!!
 
     config['save_path'] = os.path.join(save_path,
                                          config['test_data'],
                                          f'experts_trained_on_{config["train_data"]}',
                                          config['calibration_type'],
-                                         '6_experts/'
-                                         'Cset_ASV19_pooled')
+                                         f'{len(config["all_manipulations"])}_experts/'
+                                         f'Cset_{config['calibration_data'].upper()}_pooled_{config['calib_class_samples']}')
 
     # ------------------------- Thanks -------------------------#
 
@@ -111,7 +112,7 @@ if __name__ == '__main__':
         os.path.join(ckpt_exp_path, 'MIX_MIN_PHASE_LCNN.pth'),
         os.path.join(ckpt_exp_path, 'MIX_ENERGY_MLP.pth'),
         os.path.join(ckpt_exp_path, 'MIX_TONAL_MLP.pth'),
-        os.path.join(ckpt_exp_path, 'MIX_FILTERING_MLP.pth')
+        # os.path.join(ckpt_exp_path, 'MIX_FILTERING_MLP.pth')
     ]
 
     if config['test_data'] == 'asv19':
@@ -120,6 +121,7 @@ if __name__ == '__main__':
         config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12', 'A14', 'A17', 'A19', 'A21', 'A22', 'A28', 'A29']
     elif config['test_data'] == 'sc':
         config['selected'] = ['a01', 'a02', 'a03', 'a04', 'a05', 'a06', 'a07', 'a08', 'a09', 'a10', 'a11', 'a12', 'a13', 'a14', 'a15', 'a16', 'a17', 'a18', 'a19', 'a20', 'a21', 'a22', 'a23']
+        # config['selected'] = ['a11', 'a12', 'a13']
     elif config['test_data'] == 'mlaad':
         config['selected'] = ['Mars5', 'MatchaTTS', 'MeloTTS', 'Metavoice-1B', 'OpenVoiceV2', 'WhisperSpeech', 'e2-tts', 'f5-tts', 'facebook_mms-tts-eng', 'griffin_lim', 'microsoft_speecht5_tts', 'optispeech',
                               'parler_tts_large_v1', 'parler_tts_mini_v0.1', 'parler_tts_mini_v1', 'suno_bark-small', 'suno_bark', 'tts_models_en_blizzard2013_capacitron-t2-c50',

@@ -525,7 +525,7 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
                     raise ValueError(f"No manipulation found for model {model_type}")
                 mod_list.append(manipulation)
         else:
-            if idx == 0:
+            if not isinstance(self.mod, list):
                 self.mod = [self.mod]
             mod_list.append(self.mod[0])
 

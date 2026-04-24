@@ -72,7 +72,8 @@ def run_eval_CMLG(experts, eval_loader, all_a, all_b, config):
         b = all_b[i]
 
         ids, attack_ids, logLR, labels, raw_logits = compute_log_lr_CMLG(eval_loader, expert, a, b)
-        print(set(labels))
+        print(logLR.shape)
+        print(len(labels))
 
         all_results.append({
             "ids": np.array(ids),
@@ -83,41 +84,43 @@ def run_eval_CMLG(experts, eval_loader, all_a, all_b, config):
         })
         print()
 
-    print(f"Computing ensemble scores...")
+    print("Computing ensemble scores...")
 
-    # Keep only samples valid for all F0-based experts (here first one must be F0-based!)
+    # Expert 0 (F0-based) defines the valid test subset
+    # We remove for all experts the samples where F0 extraction was not successful
     common_ids = all_results[0]["ids"]
+    aligned_attack_ids = all_results[0]["attack_ids"]
+    labels_ref = all_results[0]["labels"]
+
     aligned_logLR = []
     aligned_raw_logits = []
-    aligned_attack_ids = []
-    labels_ref = None
 
     for res in all_results:
         ids = res["ids"]
-        attack_ids = res["attack_ids"]
         logLR = res["logLR"]
-        labels = res["labels"]
         raw_logits = res["raw_logits"]
 
+        # Map IDs to indices for this expert
         id_to_idx = {id_: idx for idx, id_ in enumerate(ids)}
+
+        # Select only samples kept by expert 0
         idxs = [id_to_idx[id_] for id_ in common_ids]
 
         aligned_logLR.append(logLR[idxs])
         aligned_raw_logits.append(raw_logits[idxs])
-        aligned_attack_ids = [attack_ids[idxs]]
 
-        if labels_ref is None:
-            labels_ref = labels[idxs]
+    # Stack for downstream use
+    all_logLR = np.stack(aligned_logLR, axis=0)  # (5, N)
+    all_raw_logits = np.stack(aligned_raw_logits, axis=0)  # (5, N)
 
-    all_logLR = np.stack(aligned_logLR)  # shape: (n_experts, N)
-    all_raw_logits = np.stack(aligned_raw_logits)
-    print(np.unique(np.array(labels_ref)))
-
-    # Save ensemble results
+    # Save results
     np.save(f"{config['save_path']}/scores_per_expert.npy", all_logLR)
     np.save(f"{config['save_path']}/raw_logits_per_expert.npy", all_raw_logits)
     np.save(f"{config['save_path']}/labels.npy", np.array(labels_ref))
     np.save(f"{config['save_path']}/attack_ids.npy", aligned_attack_ids)
     np.save(f"{config['save_path']}/filenames.npy", common_ids)
+
+    print(len(labels_ref))
+    print(all_logLR.shape)
 
     print("Finished. \n")

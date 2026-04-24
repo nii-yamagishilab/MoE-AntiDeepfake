@@ -12,7 +12,7 @@ MODEL_REGISTRY = [
     ("LCNN", LCNN),
     ("MLP", MLP_Energy),
     ("MLP", MLP_Checkerboard),
-    ("MLP", MLP_Checkerboard)
+    # ("MLP", MLP_Checkerboard)
 ]
 
 MANIPULATIONS_REGISTRY = [
@@ -20,9 +20,8 @@ MANIPULATIONS_REGISTRY = [
     ("MLP", "oversmooth"),
     ("LCNN", "min_phase"),
     ("MLP", "energy"),
-    # ("MLP", "ckrboard"),
     ("MLP", "tonal"),
-    ("MLP", "filtering")
+    # ("MLP", "filtering")
 ]
 
 def get_model_type_from_ckpt(ckpt_path):

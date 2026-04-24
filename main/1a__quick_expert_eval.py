@@ -31,6 +31,10 @@ def run_eval(model_names, experts, checkpoint_paths, config):
         labels = np.array(labels)
         print(f"Valid samples: {len(labels)}")
 
+        print(file_IDs)
+        print(labels)
+        print(scores)
+
         rocauc, eer, _ = compute_metrics_v2(labels, scores)
         print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n")
 
@@ -88,16 +92,16 @@ if __name__ == '__main__':
 
     # --------------------- PLEASE DEFINE ----------------------#
 
-    config['mod'] = 'filtering'
+    config['mod'] = 'energy'
     config['sanity_check'] = False
     config['target_check'] = True
 
     config['train_data'] = 'mix'
-    config['test_data'] = 'asv19'
+    config['test_data'] = 'mlaad'
     config['eval_all'] = False
 
     config['model'] = 'MLP'
-    model_classes = [MLP_Checkerboard]
+    model_classes = [MLP_Energy]
 
     model_names = [
         f'{config['train_data'].upper()}_{config['mod'].upper()}_{config['model'].upper()}.pth',
