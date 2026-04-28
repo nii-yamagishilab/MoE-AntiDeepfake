@@ -72,8 +72,8 @@ def run_eval_CMLG(experts, eval_loader, all_a, all_b, config):
         b = all_b[i]
 
         ids, attack_ids, logLR, labels, raw_logits = compute_log_lr_CMLG(eval_loader, expert, a, b)
-        print(logLR.shape)
-        print(len(labels))
+        # print(ids[:5])
+        # print(raw_logits[:5])
 
         all_results.append({
             "ids": np.array(ids),
@@ -112,6 +112,9 @@ def run_eval_CMLG(experts, eval_loader, all_a, all_b, config):
     # Stack for downstream use
     all_logLR = np.stack(aligned_logLR, axis=0)  # (5, N)
     all_raw_logits = np.stack(aligned_raw_logits, axis=0)  # (5, N)
+
+    # print(common_ids)
+    # print(all_raw_logits[3, :])
 
     # Save results
     np.save(f"{config['save_path']}/scores_per_expert.npy", all_logLR)

@@ -305,7 +305,48 @@ def load_evaluation_data(models_list, config):
     else:
         print("Test on target deepfake data.")
 
-        if config['test_data'] == 'mlaad':
+        if config['test_data'] == 'asv15':
+            df_test = pd.read_csv(os.path.join(ds['base_path'], "CM_protocol/cm_evaluation.ndx"), sep=' ',header=None)
+            df_test = df_test[df_test[ds['gen_column']].isin(['human', 'S3', 'S4', 'S10'])]
+            df_test['label'] = (df_test[ds['gen_column']] != 'human').astype(int)
+            df_test['path'] = (ds['file_dir'] + '/' + df_test[0].astype(str) + '/' + df_test[1].astype(str) + '.wav')
+            target_df = config['selected']
+            print(f"Target generator: {target_df}")
+
+            dfs = []
+
+            df_real = df_test[df_test['label'] == 0]
+            # n_requested = nb_class_samples * len(target_df)
+            # n_available = len(df_real)
+            # df_real = df_real.sample(n=min(n_requested, n_available),random_state=42)
+
+            dfs.append(df_real)
+
+            df_fake = (
+                df_test[df_test[ds['gen_column']].isin(target_df)]
+                # .groupby(ds['gen_column'], group_keys=False).sample(n=nb_class_samples, random_state=42)
+                )
+            dfs.append(df_fake)
+
+            df_eval = pd.concat(dfs, ignore_index=True)
+
+        elif config['test_data'] == 'wf':
+            df_all = pd.read_csv(os.path.join(ds['base_path'], ds['protocols']), sep=' ', header=None)
+            df_all['label'] = df_all[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
+            df_all['path'] = df_all[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['file_dir'], f"{x}.wav"))
+
+            df_real = df_all[df_all[ds['gen_column']] == '-']
+            df_fake = df_all[df_all[ds['gen_column']] != '-']
+
+            target_df = config['selected']
+            print(f"Target generator: {target_df}")
+
+            df_fake = (
+                df_fake[df_fake[ds['gen_column']].isin(target_df)]
+            )
+            df_eval = pd.concat([df_fake, df_real])
+
+        elif config['test_data'] == 'mlaad':
             # Fake samples - english only
             fake_data = glob(os.path.join(ds['fake_path'], 'en/*/*.wav'))
             df_fake = pd.DataFrame({
@@ -332,30 +373,18 @@ def load_evaluation_data(models_list, config):
             real_data = glob('/Database/M-AILABS/*/*/*/*/*/*/*.wav')
             real_labels = [0] * len(real_data)
             real_generators = ['-'] * len(real_data)
-
             df_real = pd.DataFrame({
                 "path": real_data,
                 "label": real_labels,
                 "generator": real_generators
             })
 
+            # DEBUG FILTERING
+            df_fake = df_fake[df_fake['generator'] == 'MatchaTTS']
+            df_fake = df_fake[:100]
+            df_real = df_real[:100]
+
             df_eval = pd.concat([df_fake, df_real]).reset_index(drop=True)
-
-        elif config['test_data'] == 'wf':
-            df_all = pd.read_csv(os.path.join(ds['base_path'], ds['protocols']), sep=' ', header=None)
-            df_all['label'] = df_all[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
-            df_all['path'] = df_all[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['file_dir'], f"{x}.wav"))
-
-            df_real = df_all[df_all[ds['gen_column']] == '-']
-            df_fake = df_all[df_all[ds['gen_column']] != '-']
-
-            target_df = config['selected']
-            print(f"Target generator: {target_df}")
-
-            df_fake = (
-                df_fake[df_fake[ds['gen_column']].isin(target_df)]
-            )
-            df_eval = pd.concat([df_fake, df_real])
 
         elif config['test_data'] == 'sc':
             df_train = pd.read_csv(os.path.join(ds['base_path'], ds['meta_train']), sep=',')
@@ -369,6 +398,7 @@ def load_evaluation_data(models_list, config):
             df_test = pd.read_csv(os.path.join(ds['base_path'], ds['meta_eval']), sep=',')
             df_test['label'] = df_test[ds['gen_column']].apply(lambda x: 0 if x == 'a00' else 1)
             df_test['path'] = df_test[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['eval_dir'], f"{x}"))
+
             df_all = pd.concat([df_train, df_dev, df_test], ignore_index=True)
 
             target_df = config['selected']
@@ -386,32 +416,7 @@ def load_evaluation_data(models_list, config):
 
             df_eval = pd.concat(dfs, ignore_index=True)
 
-        elif config['test_data'] == 'asv15':
-            df_test = pd.read_csv(os.path.join(ds['base_path'], "CM_protocol/cm_evaluation.ndx"), sep=' ',header=None)
-            df_test = df_test[df_test[ds['gen_column']].isin(['human', 'S3', 'S4', 'S10'])]
-            df_test['label'] = (df_test[ds['gen_column']] != 'human').astype(int)
-            df_test['path'] = (ds['file_dir'] + '/' + df_test[0].astype(str) + '/' + df_test[1].astype(str) + '.wav')
-            target_df = config['selected']
-            print(f"Target generator: {target_df}")
-
-            dfs = []
-
-            df_real = df_test[df_test['label'] == 0]
-            # n_requested = nb_class_samples * len(target_df)
-            # n_available = len(df_real)
-            # df_real = df_real.sample(n=min(n_requested, n_available),random_state=42)
-
-            dfs.append(df_real)
-
-            df_fake = (
-                df_test[df_test[ds['gen_column']].isin(target_df)]
-                # .groupby(ds['gen_column'], group_keys=False).sample(n=nb_class_samples, random_state=42)
-                )
-            dfs.append(df_fake)
-
-            df_eval = pd.concat(dfs, ignore_index=True)
-
-        else:
+        else:  # ASVspoof 2019 or ASVspoof 5
             df_train = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
             df_train['label'] = df_train[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
             df_train['path'] = df_train[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
@@ -437,10 +442,11 @@ def load_evaluation_data(models_list, config):
             df_real = df_test[df_test['label'] == 0]
             dfs.append(df_real)
 
-            df_fake = (
-                df_all[df_all[ds['gen_column']].isin(target_df)]
-                .groupby(ds['gen_column'], group_keys=False).sample(n=7760, random_state=42)
-            )
+            if config['test_data'] == 'asv5':
+                df_fake = ( df_all[df_all[ds['gen_column']].isin(target_df)]
+                            .groupby(ds['gen_column'], group_keys=False).sample(n=7760, random_state=42))
+            else:
+                df_fake = df_all[df_all[ds['gen_column']].isin(target_df)]
 
             dfs.append(df_fake)
             df_eval = pd.concat(dfs, ignore_index=True)
@@ -457,7 +463,7 @@ def load_evaluation_data(models_list, config):
     return eval_loader
 
 
-#--------------------------- Not use - baseline dfs ---------------------------#
+#--------------------------- Not used - baseline dfs ---------------------------#
 
 def load_asvspoof_data(file_name, base_path, label_dir):
     df = pd.read_csv(os.path.join(label_dir, file_name), sep=' ', header=None)

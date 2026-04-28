@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=train_expert
-#SBATCH --out="txt/T_MIX_FILTERING.out.txt"
+#SBATCH --job-name=train_gate
+#SBATCH --out="txt/T_GATE.out.txt"
 #SBATCH --time=3-00:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1
@@ -22,7 +22,7 @@ conda activate moe_env || { echo "Failed to activate Conda environment"; exit 1;
 printf "\n"
 echo "Starting Python script..."
 printf "\n"
-python main/1__expert_training.py || { echo "Python script failed"; exit 1; }
+python main/3a__train_gate.py || { echo "Python script failed"; exit 1; }
 
 # Log job end info
 echo "Job finished at: $(date)"

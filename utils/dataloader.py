@@ -256,7 +256,6 @@ class LoadTrainData(Dataset):
         self.config = config
         self.models_list = models_list
 
-        # self.gt_f0 = os.path.join(config['rootpath'], "temp_feat")
         self.gt_f0 = os.path.join(config['rootpath'], "f0_trajectories")
 
     def __len__(self):
@@ -321,9 +320,6 @@ class LoadTrainData(Dataset):
                     raise ValueError(f"[WARNING] Unrecognized dataset in path: {path}")
                 filename = hashlib.md5(path.encode()).hexdigest()
                 file = os.path.join(self.gt_f0, folder, f'{filename}.npy')
-                # filename = os.path.splitext(os.path.basename(path))[0]
-                # folder = 'f0_asv19' if 'ASVspoof2019' in path else 'f0_asv5' if 'ASVspoof5' in path else 'f0_vox'
-                # file = os.path.join(self.gt_f0, folder, f'{filename}.npy')
 
                 if not os.path.exists(file):
                     feat = extract_feature(x, mod, self.stft_params)
@@ -410,7 +406,6 @@ class LoadTrainData(Dataset):
             selected_mods = []
 
             if len(valid_mods) > 0:
-                # n_mods = np.random.randint(1, len(valid_mods) + 1)
                 n_mods = 1
                 selected_mods = np.random.choice(valid_mods, size=n_mods, replace=False)
                 mod_gt = mod_list.index(selected_mods.item())
@@ -511,7 +506,6 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         track_name = os.path.splitext(os.path.basename(path))[0]
         dummy_lb = -1
 
-        # if len(self.mod) > 1 or len(self.models_list) > 1:
         if self.mod == 'all':
             registry = MANIPULATIONS_REGISTRY.copy()
             for model_type in self.models_list:

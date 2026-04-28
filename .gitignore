@@ -12,13 +12,13 @@ txt/
 temp_feat/
 f0_trajectories/
 
-notebooks/0_pitch_mod_analyze.ipynb
-notebooks/0a_analyze_results.ipynb
-notebooks/1a_old_modular_notebook.ipynb
-notebooks/1b_xin_modular_notebook.ipynb
-notebooks/2_analyze_weights.ipynb
-notebooks/2_analyze_weights_v2.ipynb
-notebooks/3_inspect_targets.ipynb
+# ignore all notebooks
+notebooks/*.ipynb
+# allow only these
+!notebooks/5a_ensemble_results.ipynb
+!notebooks/5_ensemble_distributions.ipynb
+# ignore auxiliary folder
+notebooks/pickles/
 
 # Ignore specific files
 main/archived.tar.gz
