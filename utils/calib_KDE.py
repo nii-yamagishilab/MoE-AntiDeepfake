@@ -47,7 +47,6 @@ def run_calibration_KDE(experts, models_list, config):
 
     if config['pool_calibration_set']:
         calib_loader = load_calibration_data(models_list, config)
-        config['pool_calibration_set'] = False
 
     all_a = []
     all_b = []
@@ -58,16 +57,12 @@ def run_calibration_KDE(experts, models_list, config):
         print(f"CALIBRATING EXPERT {i+1} / {len(experts)}...")
         expert.to(device)
 
-        val_loader = load_calibration_data(config["all_manipulations"][i], config)
         if not config['pool_calibration_set']:
-            calib_loader = val_loader
+            calib_loader = load_calibration_data(config["all_manipulations"][i], config)
 
-        # val_loader.dataset.mod = config["all_manipulations"][i]
         calib_loader.dataset.mod = config["all_manipulations"][i]
 
-        # a, b = platt_scaling(val_loader, expert)
         a, b = platt_scaling(calib_loader, expert)
-
         kde_H1, kde_H0 = fit_kde(calib_loader, expert, a, b)
 
         all_a.append(a)

@@ -1,34 +1,9 @@
 import torch.nn as nn
 
 
-class GRU_Model(nn.Module):
-    def __init__(self, hidden_size=64, num_layers=1, input_size=21, return_emb=False):
-        super(GRU_Model, self).__init__()
-
-        self.return_emb = return_emb
-        self.input_size = input_size
-        self.latent_dim = hidden_size
-
-        self.gru = nn.GRU(input_size=self.input_size, hidden_size=self.latent_dim,
-                          num_layers=num_layers, batch_first=True)
-        self.fc = nn.Linear(self.latent_dim, 1)
-
-    def forward(self, x):
-        if self.input_size == 1:
-            x = x.unsqueeze(-1)  # expected x: (batch, seq_len, n_feat)
-        out, _ = self.gru(x)  # (batch, seq_len, hidden_size)
-        emb = out[:, -1, :]  # take last timestep
-        out = self.fc(emb).squeeze(1)
-
-        if not self.return_emb:
-            return out
-        else:
-            return out, emb
-
-
-class MLP_Smooth(nn.Module):
-    def __init__(self, input_size=13, return_emb=False):
-        super(MLP_Smooth, self).__init__()
+class MLP_F0_Incons(nn.Module):
+    def __init__(self, input_size=10, return_emb=False):
+        super(MLP_F0_Incons, self).__init__()
         self.return_emb = return_emb
 
         self.input_size = input_size
@@ -52,33 +27,9 @@ class MLP_Smooth(nn.Module):
             return out, emb
 
 
-class MLP_Flat_Pitch(nn.Module):
-    def __init__(self, hidden_size=16, input_size=10, return_emb=False):
-        super(MLP_Flat_Pitch, self).__init__()
-        self.return_emb = return_emb
-
-        self.latent_dim = hidden_size
-        self.input_size = input_size
-
-        self.fc1 = nn.Linear(self.input_size, self.latent_dim)
-        self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(self.latent_dim, 1)
-
-    def forward(self, x):
-        if self.input_size == 1:
-            x = x.unsqueeze(-1)
-        emb = self.relu(self.fc1(x))
-        out = self.fc2(emb).squeeze(1)
-
-        if not self.return_emb:
-            return out
-        else:
-            return out, emb
-
-
-class MLP_F0_Incons(nn.Module):
-    def __init__(self, input_size=10, return_emb=False):
-        super(MLP_F0_Incons, self).__init__()
+class MLP_Smooth(nn.Module):
+    def __init__(self, input_size=13, return_emb=False):
+        super(MLP_Smooth, self).__init__()
         self.return_emb = return_emb
 
         self.input_size = input_size
@@ -153,6 +104,56 @@ class MLP_Checkerboard(nn.Module):
             return out, emb
 
 # ---------------------------------------- Unused ---------------------------------------- #
+
+
+class MLP_Flat_Pitch(nn.Module):
+    def __init__(self, hidden_size=16, input_size=10, return_emb=False):
+        super(MLP_Flat_Pitch, self).__init__()
+        self.return_emb = return_emb
+
+        self.latent_dim = hidden_size
+        self.input_size = input_size
+
+        self.fc1 = nn.Linear(self.input_size, self.latent_dim)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(self.latent_dim, 1)
+
+    def forward(self, x):
+        if self.input_size == 1:
+            x = x.unsqueeze(-1)
+        emb = self.relu(self.fc1(x))
+        out = self.fc2(emb).squeeze(1)
+
+        if not self.return_emb:
+            return out
+        else:
+            return out, emb
+
+
+class GRU_Model(nn.Module):
+    def __init__(self, hidden_size=64, num_layers=1, input_size=21, return_emb=False):
+        super(GRU_Model, self).__init__()
+
+        self.return_emb = return_emb
+        self.input_size = input_size
+        self.latent_dim = hidden_size
+
+        self.gru = nn.GRU(input_size=self.input_size, hidden_size=self.latent_dim,
+                          num_layers=num_layers, batch_first=True)
+        self.fc = nn.Linear(self.latent_dim, 1)
+
+    def forward(self, x):
+        if self.input_size == 1:
+            x = x.unsqueeze(-1)  # expected x: (batch, seq_len, n_feat)
+        out, _ = self.gru(x)  # (batch, seq_len, hidden_size)
+        emb = out[:, -1, :]  # take last timestep
+        out = self.fc(emb).squeeze(1)
+
+        if not self.return_emb:
+            return out
+        else:
+            return out, emb
+
 
 class CNN_1D_Model(nn.Module):
     def __init__(self, return_emb=False):

@@ -80,14 +80,14 @@ if __name__ == '__main__':
 
     # --------------------- PLEASE DEFINE ----------------------#
 
-    config['calibration_type'] = 'CMLG'  # either CMLG or KDE
+    config['calibration_type'] = 'KDE'  # either CMLG or KDE
 
     config['train_data'] = 'mix'
-    config['calibration_data'] = 'asv19'
-    config['test_data'] = 'mlaad'
+    config['calibration_data'] = 'pseudo'
+    config['test_data'] = 'asv19'
 
-    config['pool_calibration_set'] = True
-    config['calib_class_samples'] = 50
+    config['pool_calibration_set'] = False
+    config['calib_class_samples'] = 1000
 
     config["all_manipulations"] = ['f0_incons', 'oversmooth','min_phase',
                                    'energy', 'tonal']  # mind the order!!!
@@ -97,8 +97,8 @@ if __name__ == '__main__':
                                          f'experts_trained_on_{config["train_data"]}',
                                          config['calibration_type'],
                                          f'{len(config["all_manipulations"])}_experts/'
-                                         # f'Cset_{config['calibration_data'].upper()}_pooled_{config['calib_class_samples']}'
-                                         'trial2'
+                                         f'Cset_{config['calibration_data'].upper()}_{config['calib_class_samples']}'
+                                         # 'trial2'
                                          )
 
     # ------------------------- Thanks -------------------------#

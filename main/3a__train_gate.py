@@ -81,7 +81,7 @@ def train_moe(ckpts, config):
                 val_losses, scores, labels = valid_epoch_compound(dev_loader, moe_model, losses, config, device)
 
             scheduler.step()
-            rocauc, eer = compute_metrics_v2(labels, scores)
+            rocauc, eer, _ = compute_metrics_v2(labels, scores)
 
             print(f'Epoch: {epoch} \n '
                   f'Train Losses - TOT: {train_losses['total']:.5f}, BCE: {train_losses['bce']:.5f}, ATTR: {train_losses['attr']:.5f} \n '

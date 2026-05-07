@@ -362,27 +362,27 @@ def load_evaluation_data(models_list, config):
                 df_fake[df_fake['generator'].isin(target_df)]
             )
 
-            # # Know real samples
-            # df_real = pd.read_csv('/Database/ASVspoof2019/public_released_data/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt', sep=' ', header=None)
-            # df_real['label'] = df_real[4].map({'bonafide': 0, 'spoof': 1})
-            # df_real['path'] = df_real[1].apply(lambda x: os.path.join('/Database/ASVspoof2019/public_released_data/LA/ASVspoof2019_LA_eval/flac', f"{x}.flac"))
-            # df_real.rename(columns={df_real.columns[3]: 'generator'}, inplace=True)
-            # df_real = df_real[df_real['label'] == 0]
+            # Known real samples
+            df_real = pd.read_csv('/Database/ASVspoof2019/public_released_data/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt', sep=' ', header=None)
+            df_real['label'] = df_real[4].map({'bonafide': 0, 'spoof': 1})
+            df_real['path'] = df_real[1].apply(lambda x: os.path.join('/Database/ASVspoof2019/public_released_data/LA/ASVspoof2019_LA_eval/flac', f"{x}.flac"))
+            df_real.rename(columns={df_real.columns[3]: 'generator'}, inplace=True)
+            df_real = df_real[df_real['label'] == 0]
 
-            # Correct paired real samples
-            real_data = glob('/Database/M-AILABS/*/*/*/*/*/*/*.wav')
-            real_labels = [0] * len(real_data)
-            real_generators = ['-'] * len(real_data)
-            df_real = pd.DataFrame({
-                "path": real_data,
-                "label": real_labels,
-                "generator": real_generators
-            })
+            # # Correct paired real samples
+            # real_data = glob('/Database/M-AILABS/*/*/*/*/*/*/*.wav')
+            # real_labels = [0] * len(real_data)
+            # real_generators = ['-'] * len(real_data)
+            # df_real = pd.DataFrame({
+            #     "path": real_data,
+            #     "label": real_labels,
+            #     "generator": real_generators
+            # })
 
-            # DEBUG FILTERING
-            df_fake = df_fake[df_fake['generator'] == 'MatchaTTS']
-            df_fake = df_fake[:100]
-            df_real = df_real[:100]
+            # # DEBUG FILTERING
+            # df_fake = df_fake[df_fake['generator'] == 'MatchaTTS']
+            # df_fake = df_fake[:100]
+            # df_real = df_real[:100]
 
             df_eval = pd.concat([df_fake, df_real]).reset_index(drop=True)
 
@@ -417,9 +417,10 @@ def load_evaluation_data(models_list, config):
             df_eval = pd.concat(dfs, ignore_index=True)
 
         else:  # ASVspoof 2019 or ASVspoof 5
-            df_train = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
-            df_train['label'] = df_train[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
-            df_train['path'] = df_train[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
+            if config['test_data'] == 'asv5':
+                df_train = pd.read_csv(os.path.join(ds['base_path'], ds['train_file']), sep=' ', header=None)
+                df_train['label'] = df_train[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
+                df_train['path'] = df_train[ds['path_column']].apply(lambda x: os.path.join(ds['base_path'], ds['train_dir'], f"{x}.flac"))
 
             df_dev = pd.read_csv(os.path.join(ds['base_path'], ds['dev_file']), sep=' ', header=None)
             df_dev['label'] = df_dev[ds['filter_column']].map({'bonafide': 0, 'spoof': 1})
@@ -431,8 +432,9 @@ def load_evaluation_data(models_list, config):
 
             if config['test_data'] == 'asv5':
                 df_test = df_test[df_test[3] == '-']  # remove post-processed samples
-
-            df_all = pd.concat([df_train, df_dev, df_test], ignore_index=True)
+                df_all = pd.concat([df_train, df_dev, df_test], ignore_index=True)
+            else:
+                df_all = pd.concat([df_dev, df_test], ignore_index=True)
 
             target_df = config['selected']
             print(f"Target generator: {target_df}")

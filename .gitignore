@@ -4,11 +4,10 @@ pydevd-pycharm.egg
 
 # Ignore folders
 baseline/
-
 checkpoints/
 results/
 txt/
-
+figures/
 temp_feat/
 f0_trajectories/
 

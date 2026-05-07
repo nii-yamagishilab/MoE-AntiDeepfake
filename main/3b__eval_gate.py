@@ -37,7 +37,7 @@ def run_eval(moe_model, models_list, result_path, config):
     print(f"Mean score (fake=1): {fake_scores.mean():.6f}")
     print(f"Mean score (real=0): {real_scores.mean():.6f}")
 
-    rocauc, eer = compute_metrics_v2(labels, scores)
+    rocauc, eer, _ = compute_metrics_v2(labels, scores)
     print(f"\nAUC: {rocauc * 100:.2f}%, EER: {eer * 100:.2f}%\n\n")
 
 
@@ -111,53 +111,33 @@ if __name__ == '__main__':
     config['sanity_check'] = False
     config['target_check'] = True
 
-    config['train_data'] = 'asv19'
-    config['test_data'] = 'asv5'
+    config['train_data'] = 'mix'
+    config['test_data'] = 'asv19'
 
-    ckpt_moe = os.path.join(ckpt_moe_path, 'MoE_Way3_Asv19_Frozen_6Exp.pth')
+    ckpt_moe = os.path.join(ckpt_moe_path, 'MoE_Way3_Mix_Frozen_5Exp.pth')
 
     # ------------------------- Thanks -------------------------#
-    config['scaling_params'] = f'Ensemble/asv19/experts_trained_on_{config['train_data']}/6_experts'
+    config['scaling_params'] = f'Ensemble/asv19/experts_trained_on_{config['train_data']}/CMLG/5_experts/Cset_ASV19_pooled_50_dev_eval'
 
-    if config['train_data'] == 'asv19':
-        ckpts_experts = [
-            os.path.join(ckpt_exp_path, 'FLAT_PITCH_MLP.pth'),
-            os.path.join(ckpt_exp_path, 'F0_INCONS_MLP.pth'),
-            os.path.join(ckpt_exp_path, 'OVERSMOOTH_MLP.pth'),
-            os.path.join(ckpt_exp_path, 'MIN_PHASE_LCNN.pth'),
-            os.path.join(ckpt_exp_path, 'ENERGY_MLP.pth'),
-            os.path.join(ckpt_exp_path, 'CKRBOARD_MLP.pth')
-        ]
-    elif config['train_data'] == 'mix':
-        ckpts_experts = [
-            os.path.join(ckpt_exp_path, 'MIX_FLAT_PITCH_MLP.pth'),
-            os.path.join(ckpt_exp_path, 'MIX_F0_INCONS_MLP.pth'),
-            os.path.join(ckpt_exp_path, 'MIX_OVERSMOOTH_MLP.pth'),
-            os.path.join(ckpt_exp_path, 'MIX_MIN_PHASE_LCNN.pth'),
-            os.path.join(ckpt_exp_path, 'MIX_ENERGY_MLP.pth'),
-            os.path.join(ckpt_exp_path, 'MIX_CKRBOARD_MLP.pth')
-        ]
-    else:
-        ckpts_experts = [
-            os.path.join(ckpt_exp_path, 'ASV5_FLAT_PITCH_MLP.pth'),
-            os.path.join(ckpt_exp_path, 'ASV5_F0_INCONS_MLP.pth'),
-            os.path.join(ckpt_exp_path, 'ASV5_OVERSMOOTH_GRU.pth'),
-            os.path.join(ckpt_exp_path, 'ASV5_MIN_PHASE_LCNN.pth'),
-            os.path.join(ckpt_exp_path, 'ASV5_ENERGY_LCNN.pth')
-        ]
+    ckpts_experts = [
+        os.path.join(ckpt_exp_path, 'MIX_F0_JOINT_MLP.pth'),
+        os.path.join(ckpt_exp_path, 'MIX_OVERSMOOTH_MLP.pth'),
+        os.path.join(ckpt_exp_path, 'MIX_MIN_PHASE_LCNN.pth'),
+        os.path.join(ckpt_exp_path, 'MIX_ENERGY_MLP.pth'),
+        os.path.join(ckpt_exp_path, 'MIX_TONAL_MLP.pth')
+    ]
 
     if config['target_check']:
         if config['test_data'] == 'asv19':
             config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12']
         elif config['test_data'] == 'asv5':
-            # config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12', 'A14']
             config['selected'] = ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08',
                                   'A09', 'A10', 'A11', 'A12', 'A14',
                                   'A17', 'A19', 'A21', 'A22', 'A28', 'A29']
         elif config['test_data'] == 'wf':
             config['selected'] = ["tts_ljspeech", "ljspeech_full_band_melgan", "ljspeech_hifiGAN", "ljspeech_melgan",
                                   "ljspeech_melgan_large", "ljspeech_multi_band_melgan", "ljspeech_parallel_wavegan",
-                                  "ljspeech_waveglow"]  #, "jsut_multi_band_melgan", "jsut_parallel_wavegan"]
+                                  "ljspeech_waveglow"]
         elif config['test_data'] == 'mlaad':
             config['selected'] = ['Mars5', 'MatchaTTS', 'MeloTTS', 'Metavoice-1B', 'OpenVoiceV2', 'WhisperSpeech', 'e2-tts',
                                   'f5-tts', 'facebook_mms-tts-eng', 'griffin_lim', 'microsoft_speecht5_tts', 'optispeech',

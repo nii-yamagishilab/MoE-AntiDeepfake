@@ -1,10 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=eval_expert
-#SBATCH --out="txt/E_quick_CK.out.txt"
+#SBATCH --job-name=EVAL
+#SBATCH --out="txt/E_GATE.out.txt"
 #SBATCH --time=03:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1
-
 
 # Log job start info
 printf "\n"
@@ -22,7 +21,7 @@ conda activate moe_env || { echo "Failed to activate Conda environment"; exit 1;
 printf "\n"
 echo "Starting Python script..."
 printf "\n"
-python main/1a__quick_expert_eval.py || { echo "Python script failed"; exit 1; }
+python main/3b__eval_gate.py || { echo "Python script failed"; exit 1; }
 
 # Log job end info
 echo "Job finished at: $(date)"

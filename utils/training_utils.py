@@ -384,7 +384,7 @@ def eval_moe_compound(model, data_loader, save_dir, device):
     all_weighted = []
     all_experts = []
 
-    for batch_x, batch_y, utt_id in tqdm(data_loader, total=len(data_loader)):
+    for batch_x, batch_y, utt_id, attack_id in tqdm(data_loader, total=len(data_loader)):
 
         if isinstance(batch_x, dict):
             values = list(batch_x.values())
@@ -394,16 +394,6 @@ def eval_moe_compound(model, data_loader, save_dir, device):
 
         # ---- MODEL OUTPUTS ----
         batch_probs, gating_probs, weighted_expert_probs, expert_probs = model(batch_x)
-        # print(expert_probs.shape)
-        # print(expert_probs[:, 1])
-        # # print()
-        # # print(calib_probs.shape)
-        # # print(calib_probs[:, 0])
-        # # print()
-        # print(utt_id)
-        # print()
-        # import sys
-        # sys.exit()
 
         batch_probs = batch_probs.detach().cpu().numpy()
         gating_probs = gating_probs.detach().cpu().numpy()

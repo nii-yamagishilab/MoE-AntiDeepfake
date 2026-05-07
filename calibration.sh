@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=CLBRT
-#SBATCH --out="txt/CMLG_MLAAD_trial2.out.txt"
+#SBATCH --out="txt/KDE_PSEUDO_1000.out.txt"
 #SBATCH --time=3-00:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1

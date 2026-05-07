@@ -1,10 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=train_gate
+#SBATCH --job-name=TRAIN
 #SBATCH --out="txt/T_GATE.out.txt"
 #SBATCH --time=3-00:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla_a100:1
-
 
 # Log job start info
 printf "\n"
