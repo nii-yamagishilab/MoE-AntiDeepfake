@@ -23,7 +23,7 @@ notebooks/pickles/
 baseline/config/args_paths.yaml
 config/add2022_track1_label.txt
 /*.txt
-/README.md
+#/README.md
 /LICENSE
 
 ##############################################################
