@@ -13,9 +13,9 @@ f0_trajectories/
 
 # ignore all notebooks
 notebooks/*.ipynb
+notebooks/*.sh
 # allow only these
-!notebooks/5a_ensemble_results.ipynb
-!notebooks/5_ensemble_distributions.ipynb
+!notebooks/plot_ensemble_results.ipynb
 # ignore auxiliary folder
 notebooks/pickles/
 
@@ -237,3 +237,7 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# local notebook scripts
+notebooks/jup_slurm.sh
+notebooks/jup_start.sh
