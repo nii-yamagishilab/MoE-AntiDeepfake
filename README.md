@@ -60,7 +60,7 @@ main/
 
 ```bash
 conda env create -f environment.yml
-conda activate moe_antideepfake
+conda activate moe_env
 ```
 
 ---
