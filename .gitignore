@@ -20,9 +20,8 @@ notebooks/*.sh
 notebooks/pickles/
 
 # Ignore specific files
-main/archived.tar.gz
-models/archived.tar.gz
 baseline/config/args_paths.yaml
+config/add2022_track1_label.txt
 /*.txt
 /README.md
 /LICENSE
@@ -237,7 +236,3 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-
-# local notebook scripts
-notebooks/jup_slurm.sh
-notebooks/jup_start.sh
