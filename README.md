@@ -115,3 +115,13 @@ python main/3b__eval_gate.py
 
 ---
 
+## Additional Resources
+
+On the server, you additionally will find the following folders:
+
+```text
+checkpoints/        # Checkpoints used for the paper results (I removed all the others for ease of use)
+results/            # proxy .txt files used in the notebook for plotting the results and evaluation metrics
+figures/            # Figures exported from the other notebook and used in the paper
+f0_trajectories/    # Cached extracted F0 trajectories
+
