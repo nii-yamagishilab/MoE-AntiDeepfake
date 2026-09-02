@@ -332,4 +332,4 @@ dependencies:
       - werkzeug==3.1.5
       - widgetsnbextension==4.0.15
       - xgboost==3.2.0
-prefix: /home/smg/v-viola/miniconda3/envs/moe_env
+prefix: ~/v-viola/miniconda3/envs/moe_env

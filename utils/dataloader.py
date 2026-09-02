@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+from pathlib import Path
 from torch.utils.data import Dataset
 from utils.make_artifacts import *
 from scipy.ndimage import gaussian_filter
@@ -549,6 +550,8 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
                 if not os.path.exists(file):
                     x = load_audio_track(path, trim=True, normalize=True)  # trim=True !
                     feat = extract_feature(x, mod, self.stft_params)
+                    if not Path(Path(file).parent).is_dir():
+                        Path(Path(file).parent).mkdir(parents=True, exist_ok=True)
                     np.save(file, feat)
                 else:
                     feat = np.load(file)
@@ -714,6 +717,8 @@ class LoadEvaluationData(Dataset):
                 if not os.path.exists(file):
                     x = load_audio_track(path, trim=True, normalize=True)  # trim=True !
                     feat = extract_feature(x, mod, self.stft_params)
+                    if not Path(Path(file).parent).is_dir():
+                        Path(Path(file).parent).mkdir(parents=True, exist_ok=True)
                     np.save(file, feat)
                 else:
                     feat = np.load(file)

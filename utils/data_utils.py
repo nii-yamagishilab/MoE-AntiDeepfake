@@ -79,10 +79,10 @@ def make_df_bonafide(config):
         # df_d['path'].to_csv('/home/smg/v-viola/Mix_Dev.txt',
         #                    index=False, header=False)
 
-        df_t = pd.read_csv('/home/smg/v-viola/Mix_Train.txt',
+        df_t = pd.read_csv('~/v-viola/Mix_Train.txt',
                             header=None, names=['path'])
 
-        df_d = pd.read_csv('/home/smg/v-viola/Mix_Dev.txt',
+        df_d = pd.read_csv('~/v-viola/Mix_Dev.txt',
                           header=None, names=['path'])
 
         return df_t, df_d

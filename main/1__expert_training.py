@@ -154,7 +154,7 @@ if __name__ == '__main__':
     main(config)
 
 
-# filename = "/home/smg/v-viola/moe_antideepfake/train_flat_pitch_mlp.out.txt"
+# filename = "~/v-viola/moe_antideepfake/train_flat_pitch_mlp.out.txt"
 # warning_counts = {}
 #
 # with open(filename, "r") as f:
