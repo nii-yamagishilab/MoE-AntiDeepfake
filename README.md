@@ -1,11 +1,31 @@
-# AntiDeepfake Interpretable Ensemble
+<!-- markdownlint-disable first-line-h1 -->
+<!-- markdownlint-disable html -->
+<!-- markdownlint-disable no-duplicate-header -->
 
+<div align="center">
+  <h1>Toward Interpretable Speech Deepfake Detection using Artifact-Specific Experts and Calibrated Detection Scores</p>
+</div>
+
+<div align="center" style="line-height: 1;">
+  <a href="./LICENSE"><img alt="Code License"
+    src="https://img.shields.io/badge/license-MIT-blue"/></a>
+  <a href="https://arxiv.org/abs/2607.21127"><img alt="arXiv"
+    src="https://img.shields.io/badge/arXiv-2607.21127-b31b1b?logo=arxiv&logoColor=white"/></a>
+</div>
+
+# Introduction
+
+This is the code repository for paper accepted below
 
 ```bibtex
-Interpretable speech deepfake detection based on artifact-specific expert models
-
-Proc. ACM MM DFF-Workshop, 2026
+Toward Interpretable Speech Deepfake Detection using Artifact-Specific Experts and Calibrated Detection Scores
+Viola Negroni, Xin Wang, Wanying Ge, Paolo Bestagini, Junichi Yamagishi, Stefano Tubaro
+Proc. ACM Multimedia, 2nd Deepfake Forensics Workshop: Detection, Attribution, Recognition, and Adversarial Challenges in the Era of AI-Generated Media, 2026
 ```
+
+[Arxiv link](https://arxiv.org/abs/2607.21127)
+
+
 ## Overview
 
 This repository implements an interpretable framework for speech deepfake detection based on explicit synthesis artifact modeling.
@@ -132,14 +152,22 @@ python main/3a__train_gate.py
 python main/3b__eval_gate.py
 ```
 
+
+## 6. Acknowledgments
+It is  partially supported by JST PRESTO Grant (JPMJPR23P9). This project was partially carried out using the TSUBAME4.0 supercomputer at the Institute of Science Tokyo.
+
+The code in this repository is released under the MIT license. See [`LICENSE`](LICENSE).
+
+## 7. Citation
+
+If you find this repository useful, please consider citing:
+
+```bibtex
+@inproceedings{negroni2026acmmmw,
+  title={Toward Interpretable Speech Deepfake Detection using Artifact-Specific Experts and Calibrated Detection Scores},
+  author={Negroni, Viola and Wang, Xin and Ge, Wanying and Bestagini, Paolo and Yamagishi, Junichi and Tubaro, Stefano},
+  booktitle={Proc. ACM Multimedia, 2nd Deepfake Forensics Workshop: Detection, Attribution, Recognition, and Adversarial Challenges in the Era of AI-Generated Media},
+  year={2026}
+}
+```
 ---
-
-## Additional Resources
-
-On the server, you additionally will find the following folders:
-
-```text
-results/            # proxy files used in the notebook for plotting the results and evaluation metrics
-figures/            # Figures exported from the other notebook and used in the paper
-f0_trajectories/    # Cached extracted F0 trajectories
-
