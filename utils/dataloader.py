@@ -13,6 +13,15 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 #-------------------------------------- COMMON FUNCTIONS ----------------------------------#
 
+def prepare_f0_cache(rootpath):
+    """Create the dataset cache directories and return the F0 cache root."""
+    cache_root = Path(rootpath) / 'f0_trajectories'
+    for folder in ('f0_asv19', 'f0_asv5', 'f0_sc', 'f0_mlaad',
+                   'f0_mailabs', 'f0_asv15', 'f0_wf'):
+        (cache_root / folder).mkdir(parents=True, exist_ok=True)
+    return str(cache_root)
+
+
 def prepare_audio_window(x, max_len, is_eval=False):
     x_len = x.shape[0]
 
@@ -257,7 +266,7 @@ class LoadTrainData(Dataset):
         self.config = config
         self.models_list = models_list
 
-        self.gt_f0 = os.path.join(config['rootpath'], "f0_trajectories")
+        self.gt_f0 = prepare_f0_cache(config['rootpath'])
 
     def __len__(self):
         return len(self.list_IDs)
@@ -485,7 +494,7 @@ class LoadEvalData_MoE_SanityCheck(Dataset):
         self.config = config
 
         self.mod = config['selected']
-        self.gt_f0 = os.path.join(config['rootpath'], "f0_trajectories")
+        self.gt_f0 = prepare_f0_cache(config['rootpath'])
 
     def __len__(self):
         return len(self.list_IDs)
@@ -647,7 +656,7 @@ class LoadEvaluationData(Dataset):
         self.models_list = models_list
         self.config = config
 
-        self.gt_f0 = os.path.join(config['rootpath'], "f0_trajectories")
+        self.gt_f0 = prepare_f0_cache(config['rootpath'])
 
     def __len__(self):
         return len(self.list_IDs)
